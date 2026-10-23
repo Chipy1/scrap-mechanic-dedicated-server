@@ -49,6 +49,22 @@ The game container mounts:
 
 Backups are not mounted into the game container.
 
+## Host notes
+
+On hosts that ship Ubuntu's `/etc/apparmor.d/steam` profile, that profile can
+deny Steam client socket creation (`EACCES`) even when Docker runs with
+`apparmor=unconfined`. Add network rules to the profile, or unload/remove it,
+before starting the game:
+
+```text
+network inet stream,
+network inet dgram,
+network inet6 stream,
+network inet6 dgram,
+```
+
+Reload with `apparmor_parser -r /etc/apparmor.d/steam`.
+
 ## Operation
 
 The entrypoint runs SteamCMD for updates, starts Xvfb + openbox, logs in to the
