@@ -1,0 +1,71 @@
+name: scrap-mechanic
+
+services:
+  sm-game:
+    build:
+      context: ./docker/game
+      dockerfile: Dockerfile
+    image: sm-game:local
+    container_name: sm-game
+    restart: unless-stopped
+    init: false
+    stop_grace_period: 180s
+    network_mode: host
+    security_opt:
+      - seccomp:unconfined
+      - apparmor:unconfined
+    shm_size: "1gb"
+    env_file:
+      - .env
+    volumes:
+      - sm_steam:/home/steam/.local/share/Steam
+      - "sm_saves:/home/steam/.local/share/Steam/steamapps/compatdata/387990/pfx/drive_c/users/steamuser/AppData/Roaming/Axolot Games/Scrap Mechanic/User"
+      - "sm_logs:/home/steam/.local/share/Steam/steamapps/common/Scrap Mechanic/Logs"
+      - sm_seed:/seed:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f '^S:.*ScrapMechanic.exe' >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 300s
+
+  sm-control:
+    build:
+      context: ./control
+      dockerfile: Dockerfile
+    image: sm-control:local
+    container_name: sm-control
+    restart: unless-stopped
+    stop_grace_period: 20s
+    env_file:
+      - .env
+    environment:
+      SM_SAVES_DIR: /saves
+      SM_LOGS_DIR: /logs
+      SM_BACKUPS_DIR: /backups
+      SM_STATE_DIR: /var/lib/sm-control
+    ports:
+      - "127.0.0.1:${SM_API_PORT:-8080}:8080"
+    volumes:
+      - sm_saves:/saves
+      - sm_logs:/logs:ro
+      - sm_backups:/backups
+      - sm_control:/var/lib/sm-control
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python3 -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=3)\"",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  sm_steam:
+  sm_saves:
+  sm_seed:
+  sm_logs:
+  sm_backups:
+  sm_control:
