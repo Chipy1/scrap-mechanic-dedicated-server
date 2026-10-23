@@ -132,10 +132,10 @@ container has no GPU device and exports `LIBGL_ALWAYS_SOFTWARE=1`,
 `GALLIUM_DRIVER=llvmpipe`, and DXVK filtering for `llvmpipe`. The Steam Linux
 Runtime exposes the host lavapipe ICD inside the pressure-vessel container.
 
-For CPU-only hosts the default Xvfb screen is `640x360x24` at `30` fake Hz
+For CPU-only hosts the default Xvfb screen is `640x360x24` at `10` fake Hz
 (`XVFB_RESOLUTION`, `XVFB_FPS`) and llvmpipe uses `LP_NUM_THREADS=8`. A
 1280x720/1 Hz Xvfb can make the game feel like slow motion; keep the fake
-refresh at 30 or 60.
+refresh at 10 or higher.
 Verify from the host with:
 
 ```sh

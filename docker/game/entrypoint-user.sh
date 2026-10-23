@@ -27,6 +27,7 @@ ACCOUNT_ID=""
 STEAM_ID_SCRIPT="${STEAM_ID_SCRIPT:-/usr/local/lib/sm/steam_id.py}"
 PATCH_SCRIPT="${PATCH_SCRIPT:-/usr/local/lib/sm/patch_steam_config.py}"
 EULA_SCRIPT="${EULA_SCRIPT:-/usr/local/lib/sm/accept_eula.py}"
+LOW_SETTINGS="${SM_LOW_SETTINGS:-/usr/local/lib/sm/low-settings.json}"
 VALIDATE_SCRIPT="${VALIDATE_SCRIPT:-/usr/local/lib/sm/validate_save.py}"
 
 PREFIX="$STEAM_ROOT/steamapps/compatdata/$APP_ID/pfx"
@@ -77,7 +78,7 @@ start_x() {
     export GALLIUM_DRIVER=llvmpipe
     export MESA_LOADER_DRIVER_OVERRIDE=llvmpipe
     export LP_NUM_THREADS="${LP_NUM_THREADS:-8}"
-    export DXVK_FPS_LIMIT="${DXVK_FPS_LIMIT:-30}"
+    export DXVK_FPS_LIMIT="${DXVK_FPS_LIMIT:-10}"
     # Paths under /usr/local are not visible in the Steam Linux Runtime
     # container, so keep the DXVK config in the Steam volume instead.
     export DXVK_CONFIG_FILE="$STEAM_ROOT/dxvk.conf"
@@ -91,7 +92,7 @@ start_x() {
     local display_number="${DISPLAY#:}"
     rm -f "/tmp/.X${display_number}-lock" "/tmp/.X11-unix/X${display_number}" 2>/dev/null || true
     Xvfb "$DISPLAY" -screen 0 "${XVFB_RESOLUTION:-640x360x24}" \
-        -fakescreenfps "${XVFB_FPS:-30}" \
+        -fakescreenfps "${XVFB_FPS:-10}" \
         -nolisten tcp -ac +extension GLX +render -noreset \
         >"$CACHE_DIR/xvfb.log" 2>&1 &
     XVFB_PID=$!
@@ -361,6 +362,15 @@ validate_save() {
     python3 "$VALIDATE_SCRIPT" "$1" >/dev/null
 }
 
+install_settings() {
+    if [[ "${SM_LOW_GRAPHICS:-true}" != "true" ]]; then
+        return 0
+    fi
+    local settings="$SAVES_ROOT/User_$STEAM_ID/settings.json"
+    install -m 0660 "$LOW_SETTINGS" "$settings"
+    log "installed low graphics settings"
+}
+
 make_windows_path() {
     local relative="${TARGET#"$PREFIX/drive_c/"}"
     if [[ "$relative" == "$TARGET" ]]; then
@@ -423,8 +433,12 @@ launch_game() {
     write_marker
     start_heartbeat
     log "launching app $APP_ID through Steam"
+    local extra_args=()
+    if [[ -n "${SM_GAME_EXTRA_ARGS:-}" ]]; then
+        read -r -a extra_args <<< "$SM_GAME_EXTRA_ARGS"
+    fi
     "$STEAM_BIN" -applaunch "$APP_ID" -dedicated_server -console -open "$WIN_SAVE" \
-        >>"$CACHE_DIR/steam-launch.log" 2>&1 &
+        "${extra_args[@]}" >>"$CACHE_DIR/steam-launch.log" 2>&1 &
     local launcher_pid=$!
 
     local timeout="${SM_GAME_START_TIMEOUT:-300}"
@@ -530,6 +544,7 @@ main() {
     determine_steam_id
     patch_proton_mapping
     seed_save
+    install_settings
     make_windows_path
     launch_game || die "game launch failed"
 }

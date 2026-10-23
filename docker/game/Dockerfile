@@ -23,7 +23,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PROTON_NO_FSYNC=1 \
     WINEDEBUG=-all \
     XVFB_RESOLUTION=640x360x24 \
-    XVFB_FPS=30
+    XVFB_FPS=10
 
 RUN dpkg --add-architecture i386 \
     && apt-get update \
@@ -90,6 +90,7 @@ COPY steam_id.py /usr/local/lib/sm/steam_id.py
 COPY patch_steam_config.py /usr/local/lib/sm/patch_steam_config.py
 COPY accept_eula.py /usr/local/lib/sm/accept_eula.py
 COPY dxvk.conf /usr/local/lib/sm/dxvk.conf
+COPY low-settings.json /usr/local/lib/sm/low-settings.json
 RUN chmod 0755 /entrypoint.sh /usr/local/lib/sm/entrypoint-user.sh \
         /usr/local/lib/sm/validate_save.py /usr/local/lib/sm/steam_id.py \
         /usr/local/lib/sm/patch_steam_config.py /usr/local/lib/sm/accept_eula.py
