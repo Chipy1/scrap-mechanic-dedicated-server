@@ -173,6 +173,7 @@ wait_for_login() {
     local timeout="${SM_STEAM_LOGIN_TIMEOUT:-1200}"
     local deadline=$((SECONDS + timeout))
     local login_file="$STEAM_ROOT/config/loginusers.vdf"
+    local steam_restarts=0
     while (( SECONDS < deadline )); do
         if [[ -f "$login_file" ]]; then
             local login_mtime
@@ -200,9 +201,19 @@ wait_for_login() {
         fi
         if ! pgrep -x steam >/dev/null 2>&1 \
             && ! kill -0 "$STEAM_PID" 2>/dev/null; then
-            log "Steam client exited during login"
-            tail -n 30 "$CACHE_DIR/steam-client.log" >&2 || true
-            return 1
+            # The Steam launcher can exit after installing/updating its
+            # bootstrap while the client is still being prepared. Relaunch it
+            # a few times instead of treating that as a login failure.
+            if (( steam_restarts >= 5 )); then
+                log "Steam client exited repeatedly during login"
+                tail -n 30 "$CACHE_DIR/steam-client.log" >&2 || true
+                return 1
+            fi
+            steam_restarts=$((steam_restarts + 1))
+            log "Steam client exited during startup; restarting ($steam_restarts/5)"
+            sleep 3
+            start_steam
+            continue
         fi
         sleep 2
     done
