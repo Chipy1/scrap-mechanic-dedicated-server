@@ -78,7 +78,7 @@ start_x() {
     export LIBGL_ALWAYS_SOFTWARE=1
     export GALLIUM_DRIVER=llvmpipe
     export MESA_LOADER_DRIVER_OVERRIDE=llvmpipe
-    export LP_NUM_THREADS="${LP_NUM_THREADS:-8}"
+    export LP_NUM_THREADS="${LP_NUM_THREADS:-2}"
     export DXVK_FPS_LIMIT="${DXVK_FPS_LIMIT:-$SM_FPS_CAP}"
     # Paths under /usr/local are not visible in the Steam Linux Runtime
     # container, so keep the DXVK config in the Steam volume instead.
@@ -438,8 +438,9 @@ launch_game() {
     if [[ -n "${SM_GAME_EXTRA_ARGS:-}" ]]; then
         read -r -a extra_args <<< "$SM_GAME_EXTRA_ARGS"
     fi
-    "$STEAM_BIN" -applaunch "$APP_ID" -dedicated_server -console -fps "$SM_FPS_CAP" \
-        -open "$WIN_SAVE" "${extra_args[@]}" >>"$CACHE_DIR/steam-launch.log" 2>&1 &
+    "$STEAM_BIN" -applaunch "$APP_ID" -dedicated_server -console \
+        "${extra_args[@]}" -fps "$SM_FPS_CAP" -open "$WIN_SAVE" \
+        >>"$CACHE_DIR/steam-launch.log" 2>&1 &
     local launcher_pid=$!
 
     local timeout="${SM_GAME_START_TIMEOUT:-300}"
