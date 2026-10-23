@@ -131,6 +131,11 @@ The image is Ubuntu 24.04 with Mesa 25 lavapipe and GE-Proton's DXVK 3.1. The
 container has no GPU device and exports `LIBGL_ALWAYS_SOFTWARE=1`,
 `GALLIUM_DRIVER=llvmpipe`, and DXVK filtering for `llvmpipe`. The Steam Linux
 Runtime exposes the host lavapipe ICD inside the pressure-vessel container.
+
+For CPU-only hosts the default Xvfb screen is `640x360x24` at `30` fake Hz
+(`XVFB_RESOLUTION`, `XVFB_FPS`) and llvmpipe uses `LP_NUM_THREADS=8`. A
+1280x720/1 Hz Xvfb can make the game feel like slow motion; keep the fake
+refresh at 30 or 60.
 Verify from the host with:
 
 ```sh

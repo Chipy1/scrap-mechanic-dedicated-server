@@ -21,7 +21,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     DXVK_CONFIG_FILE=/usr/local/lib/sm/dxvk.conf \
     PROTON_NO_ESYNC=1 \
     PROTON_NO_FSYNC=1 \
-    WINEDEBUG=-all
+    WINEDEBUG=-all \
+    XVFB_RESOLUTION=640x360x24 \
+    XVFB_FPS=30
 
 RUN dpkg --add-architecture i386 \
     && apt-get update \

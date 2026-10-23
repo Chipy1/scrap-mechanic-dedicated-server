@@ -76,7 +76,7 @@ start_x() {
     export LIBGL_ALWAYS_SOFTWARE=1
     export GALLIUM_DRIVER=llvmpipe
     export MESA_LOADER_DRIVER_OVERRIDE=llvmpipe
-    export LP_NUM_THREADS="${LP_NUM_THREADS:-4}"
+    export LP_NUM_THREADS="${LP_NUM_THREADS:-8}"
     export DXVK_FPS_LIMIT="${DXVK_FPS_LIMIT:-30}"
     # Paths under /usr/local are not visible in the Steam Linux Runtime
     # container, so keep the DXVK config in the Steam volume instead.
@@ -90,7 +90,8 @@ start_x() {
 
     local display_number="${DISPLAY#:}"
     rm -f "/tmp/.X${display_number}-lock" "/tmp/.X11-unix/X${display_number}" 2>/dev/null || true
-    Xvfb "$DISPLAY" -screen 0 "${XVFB_RESOLUTION:-1280x720x24}" \
+    Xvfb "$DISPLAY" -screen 0 "${XVFB_RESOLUTION:-640x360x24}" \
+        -fakescreenfps "${XVFB_FPS:-30}" \
         -nolisten tcp -ac +extension GLX +render -noreset \
         >"$CACHE_DIR/xvfb.log" 2>&1 &
     XVFB_PID=$!
