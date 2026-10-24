@@ -110,7 +110,7 @@ start_x() {
 
     local display_number="${DISPLAY#:}"
     rm -f "/tmp/.X${display_number}-lock" "/tmp/.X11-unix/X${display_number}" 2>/dev/null || true
-    Xvfb "$DISPLAY" -screen 0 "${XVFB_RESOLUTION:-640x360x24}" \
+    Xvfb "$DISPLAY" -screen 0 "${XVFB_RESOLUTION:-1280x720x24}" \
         -fakescreenfps "${XVFB_FPS:-10}" \
         -nolisten tcp -ac +extension GLX +render -noreset \
         >"$CACHE_DIR/xvfb.log" 2>&1 &

@@ -22,7 +22,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PROTON_NO_ESYNC=1 \
     PROTON_NO_FSYNC=1 \
     WINEDEBUG=-all \
-    XVFB_RESOLUTION=640x360x24 \
+    XVFB_RESOLUTION=1280x720x24 \
     XVFB_FPS=10
 
 RUN dpkg --add-architecture i386 \

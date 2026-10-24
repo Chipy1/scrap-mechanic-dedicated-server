@@ -26,7 +26,7 @@
 	"GUIVolume" : 0.0,
 	"Godrays" : 0,
 	"GraphicsSettingVersion" : "48012_28_2",
-	"Height" : 360,
+	"Height" : 720,
 	"ImmersiveCamera" : 0,
 	"ImmersiveDestructionMode" : 0,
 	"ImmersiveDrivingMode" : 0,
@@ -52,5 +52,5 @@
 	"VoiceOverVolume" : 0.0,
 	"Volumetrics" : 0,
 	"VoxelTesselation" : 0,
-	"Width" : 640
+	"Width" : 1280
 }
