@@ -35,6 +35,7 @@ PREFIX="$STEAM_ROOT/steamapps/compatdata/$APP_ID/pfx"
 MARKER="$SAVES_ROOT/.sm-server-running"
 STEAM_PID=""
 XVFB_PID=""
+VNC_PID=""
 OPENBOX_PID=""
 HEARTBEAT_PID=""
 STEAM_ID=""
@@ -65,6 +66,23 @@ require_config() {
         *) SAVE_SUBDIR="Save" ;;
     esac
     SEED_FILE="$SEED_DIR/$SAVE_FILENAME"
+}
+
+start_vnc() {
+    if ! command -v x11vnc >/dev/null 2>&1; then
+        log "x11vnc is not installed"
+        return 1
+    fi
+    x11vnc -display "$DISPLAY" -rfbport 5900 -localhost -nopw \
+        -forever -shared -noxdamage -repeat -nolookup -quiet \
+        >"$CACHE_DIR/x11vnc.log" 2>&1 &
+    VNC_PID=$!
+    sleep 1
+    if ! kill -0 "$VNC_PID" 2>/dev/null; then
+        tail -n 30 "$CACHE_DIR/x11vnc.log" >&2 || true
+        return 1
+    fi
+    log "VNC ready on 127.0.0.1:5900"
 }
 
 start_x() {
@@ -521,6 +539,9 @@ cleanup() {
     if [[ -n "$OPENBOX_PID" ]]; then
         kill "$OPENBOX_PID" 2>/dev/null || true
     fi
+    if [[ -n "$VNC_PID" ]]; then
+        kill "$VNC_PID" 2>/dev/null || true
+    fi
     if [[ -n "$XVFB_PID" ]]; then
         kill "$XVFB_PID" 2>/dev/null || true
     fi
@@ -539,6 +560,7 @@ main() {
     log "Scrap Mechanic dedicated server starting"
     log "save: $SAVE_NAME (custom=$IS_CUSTOM_GAME)"
     start_x
+    start_vnc || die "x11vnc failed to start"
     ensure_compat_tool
     install_or_update_game
     start_steam

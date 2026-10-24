@@ -90,6 +90,23 @@ docker compose down          # keeps named volumes
 
 Do not use `docker compose down -v` unless you intend to delete the world.
 
+## Web panel and VNC
+
+`sm-panel` is a separate host-network service bound to `127.0.0.1:${SM_PANEL_PORT:-8081}`.
+It provides a single-admin web UI, server status, logs, manual backups, and a full-control
+noVNC viewer. Raw VNC (port 5900) is never published; x11vnc listens only on loopback.
+
+Open it through an SSH tunnel:
+
+```sh
+ssh -L 8081:127.0.0.1:8081 root@<remote-host>
+# then open http://127.0.0.1:8081 in a browser
+```
+
+The login is `SM_PANEL_USER` / `SM_PANEL_PASSWORD` from `.env`. The panel session is
+signed with `SM_PANEL_SECRET`; keep all three values secret. Do not bind the panel to
+`0.0.0.0` without TLS and a firewall/VPN.
+
 ## API and metrics
 
 The API is bound to `127.0.0.1:${SM_API_PORT}`. Every `/api/v1/*` route and

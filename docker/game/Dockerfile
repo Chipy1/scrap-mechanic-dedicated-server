@@ -29,7 +29,7 @@ RUN dpkg --add-architecture i386 \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates curl wget gnupg2 tar gzip xz-utils unzip file lsof \
-        xvfb xauth x11-utils x11-xserver-utils openbox xdotool wmctrl \
+        xvfb xauth x11-utils x11-xserver-utils x11vnc openbox xdotool wmctrl \
         dbus-x11 at-spi2-core \
         vulkan-tools mesa-utils \
         libvulkan1 libvulkan1:i386 mesa-vulkan-drivers mesa-vulkan-drivers:i386 \

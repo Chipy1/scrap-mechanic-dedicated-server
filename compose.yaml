@@ -62,6 +62,42 @@ services:
       retries: 5
       start_period: 10s
 
+  sm-panel:
+    build:
+      context: ./panel
+      dockerfile: Dockerfile
+    image: sm-panel:local
+    container_name: sm-panel
+    restart: unless-stopped
+    stop_grace_period: 15s
+    network_mode: host
+    env_file:
+      - .env
+    environment:
+      SM_CONTROL_URL: http://127.0.0.1:8080
+      SM_VNC_HOST: 127.0.0.1
+      SM_VNC_PORT: "5900"
+      SM_PANEL_BIND: ${SM_PANEL_BIND:-127.0.0.1}
+      SM_PANEL_PORT: ${SM_PANEL_PORT:-8081}
+    command:
+      - sh
+      - -c
+      - exec uvicorn app.main:app --host "$$SM_PANEL_BIND" --port "$$SM_PANEL_PORT" --proxy-headers
+    depends_on:
+      - sm-control
+      - sm-game
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8081/healthz\", timeout=3)'",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+
 volumes:
   sm_steam:
   sm_saves:
