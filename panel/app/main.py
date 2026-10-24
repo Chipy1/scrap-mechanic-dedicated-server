@@ -155,7 +155,7 @@ pre { flex:1; min-height:0; overflow:auto; margin:0; padding:10px; border-radius
     </section>
   </aside>
   <section class="vnc">
-    <iframe src="/vnc/vnc.html?autoconnect=1&resize=scale&path=vnc/ws" allow="clipboard-read; clipboard-write"></iframe>
+    <iframe src="/vnc/vnc.html?autoconnect=1&resize=off&path=vnc/ws" allow="clipboard-read; clipboard-write"></iframe>
   </section>
 </main>
 <script>
