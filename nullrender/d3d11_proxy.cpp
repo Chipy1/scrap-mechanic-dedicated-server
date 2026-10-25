@@ -10,6 +10,7 @@
 #include <dxgi.h>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 
 namespace {
@@ -191,6 +192,181 @@ void install_chat_limit() {
     log_line("chat limit: ChatServer chat packets over 2048 bytes are dropped");
 }
 
+// Native probes for the container/inventory and shape-creation paths.  These
+// are intentionally logging-only: they let us identify the exact server path
+// used by a cheating client before we add a hard rejection rule.
+struct ProbeSpec {
+    const char* name;
+    std::uintptr_t rva;
+    const unsigned char* original;
+    std::size_t size;
+};
+
+constexpr unsigned char kShapeCreateOriginal[] = {
+    0x48, 0x89, 0x5c, 0x24, 0x18,
+};
+constexpr unsigned char kCollectCoreOriginal[] = {
+    0x48, 0x8b, 0xc4, 0x4c, 0x89, 0x40, 0x18,
+};
+constexpr unsigned char kCollectAltOriginal[] = {
+    0x48, 0x8b, 0xc4, 0x44, 0x89, 0x48, 0x20,
+};
+constexpr unsigned char kCollectSlotOriginal[] = {
+    0x40, 0x55, 0x56, 0x41, 0x56, 0x41, 0x57,
+};
+constexpr unsigned char kSpendOriginal[] = {
+    0x48, 0x89, 0x54, 0x24, 0x10,
+};
+
+constexpr ProbeSpec kProbes[] = {
+    {"shape_create", 0xb3fcb0, kShapeCreateOriginal, sizeof(kShapeCreateOriginal)},
+    {"collect_core", 0x7bae00, kCollectCoreOriginal, sizeof(kCollectCoreOriginal)},
+    {"collect_alt", 0x7baaa0, kCollectAltOriginal, sizeof(kCollectAltOriginal)},
+    {"collect_slot", 0x7ba620, kCollectSlotOriginal, sizeof(kCollectSlotOriginal)},
+    {"spend", 0x7bb1e0, kSpendOriginal, sizeof(kSpendOriginal)},
+};
+
+void probe_log(const char* name, std::uint64_t rcx, std::uint64_t rdx,
+               std::uint64_t r8, std::uint64_t r9) {
+    char line[256] = {};
+    std::snprintf(line, sizeof(line),
+                  "anticheat probe %s rcx=%016llx rdx=%016llx r8=%016llx r9=%016llx tid=%lu",
+                  name,
+                  static_cast<unsigned long long>(rcx),
+                  static_cast<unsigned long long>(rdx),
+                  static_cast<unsigned long long>(r8),
+                  static_cast<unsigned long long>(r9),
+                  static_cast<unsigned long>(GetCurrentThreadId()));
+    log_line(line);
+}
+
+void append_mov_imm64(unsigned char* out, std::size_t& offset,
+                      unsigned char rex, unsigned char opcode,
+                      std::uintptr_t value) {
+    out[offset++] = rex;
+    out[offset++] = opcode;
+    std::memcpy(out + offset, &value, sizeof(value));
+    offset += sizeof(value);
+}
+
+bool install_probe(const ProbeSpec& spec, unsigned char* base) {
+    auto* patch_site = base + spec.rva;
+    if (std::memcmp(patch_site, spec.original, spec.size) != 0) {
+        char line[160] = {};
+        std::snprintf(line, sizeof(line),
+                      "anticheat probe %s: bytes do not match this build, skipped",
+                      spec.name);
+        log_line(line);
+        return false;
+    }
+
+    auto* cave = allocate_cave_near(reinterpret_cast<std::uintptr_t>(patch_site));
+    if (!cave) {
+        log_line("anticheat probe: executable cave allocation failed");
+        return false;
+    }
+
+    const auto patch_addr = reinterpret_cast<std::uintptr_t>(patch_site);
+    const auto cave_addr = reinterpret_cast<std::uintptr_t>(cave);
+    if (!fits_rel32(patch_addr + 5, cave_addr)) {
+        log_line("anticheat probe: cave is out of rel32 range");
+        VirtualFree(cave, 0, MEM_RELEASE);
+        return false;
+    }
+
+    std::size_t offset = 0;
+
+    // Preserve the integer argument registers and flags around the logger.
+    // The target function has not saved its own prologue registers yet.
+    const unsigned char save_regs[] = {
+        0x9c,                    // pushfq
+        0x50,                    // push rax
+        0x51,                    // push rcx
+        0x52,                    // push rdx
+        0x41, 0x50,              // push r8
+        0x41, 0x51,              // push r9
+        0x41, 0x52,              // push r10
+        0x41, 0x53,              // push r11
+        0x48, 0x83, 0xec, 0x28,  // sub rsp, 0x28
+    };
+    std::memcpy(cave + offset, save_regs, sizeof(save_regs));
+    offset += sizeof(save_regs);
+
+    append_mov_imm64(cave, offset, 0x48, 0xb9,
+                     reinterpret_cast<std::uintptr_t>(spec.name));
+    const unsigned char args[] = {
+        0x48, 0x8b, 0x54, 0x24, 0x50,        // rdx = saved rcx
+        0x4c, 0x8b, 0x44, 0x24, 0x48,        // r8  = saved rdx
+        0x4c, 0x8b, 0x4c, 0x24, 0x40,        // r9  = saved r8
+    };
+    std::memcpy(cave + offset, args, sizeof(args));
+    offset += sizeof(args);
+
+    const auto logger = reinterpret_cast<std::uintptr_t>(&probe_log);
+    append_mov_imm64(cave, offset, 0x49, 0xbb, logger);  // mov r11, logger
+    const unsigned char call_r11[] = {0x41, 0xff, 0xd3};
+    std::memcpy(cave + offset, call_r11, sizeof(call_r11));
+    offset += sizeof(call_r11);
+
+    const unsigned char restore_regs[] = {
+        0x48, 0x83, 0xc4, 0x28,  // add rsp, 0x28
+        0x41, 0x5b,              // pop r11
+        0x41, 0x5a,              // pop r10
+        0x41, 0x59,              // pop r9
+        0x41, 0x58,              // pop r8
+        0x5a,                    // pop rdx
+        0x59,                    // pop rcx
+        0x58,                    // pop rax
+        0x9d,                    // popfq
+    };
+    std::memcpy(cave + offset, restore_regs, sizeof(restore_regs));
+    offset += sizeof(restore_regs);
+
+    std::memcpy(cave + offset, spec.original, spec.size);
+    offset += spec.size;
+
+    const auto resume = patch_addr + spec.size;
+    append_mov_imm64(cave, offset, 0x49, 0xbb, resume);
+    const unsigned char jmp_r11[] = {0x41, 0xff, 0xe3};
+    std::memcpy(cave + offset, jmp_r11, sizeof(jmp_r11));
+    offset += sizeof(jmp_r11);
+
+    DWORD old = 0;
+    if (!VirtualProtect(patch_site, spec.size, PAGE_EXECUTE_READWRITE, &old)) {
+        log_line("anticheat probe: patch page is not writable");
+        VirtualFree(cave, 0, MEM_RELEASE);
+        return false;
+    }
+
+    patch_site[0] = 0xe9;
+    const std::int32_t rel = static_cast<std::int32_t>(cave_addr - (patch_addr + 5));
+    std::memcpy(patch_site + 1, &rel, sizeof(rel));
+    for (std::size_t i = 5; i < spec.size; ++i) patch_site[i] = 0x90;
+
+    DWORD ignored = 0;
+    VirtualProtect(patch_site, spec.size, old, &ignored);
+    FlushInstructionCache(GetCurrentProcess(), patch_site, spec.size);
+
+    char line[160] = {};
+    std::snprintf(line, sizeof(line), "anticheat probe %s: installed", spec.name);
+    log_line(line);
+    return true;
+}
+
+void install_probes() {
+    static bool attempted = false;
+    if (attempted) return;
+    attempted = true;
+
+    HMODULE exe = GetModuleHandleW(nullptr);
+    if (!exe) {
+        log_line("anticheat probe: main module not found");
+        return;
+    }
+    auto* base = reinterpret_cast<unsigned char*>(exe);
+    for (const auto& spec : kProbes) install_probe(spec, base);
+}
+
 bool patch_pointer(void** table, std::size_t index, void* value) {
     if (table == nullptr) return false;
     DWORD old = 0;
@@ -253,6 +429,7 @@ extern "C" __declspec(dllexport) HRESULT WINAPI D3D11CreateDevice(
     UINT sdk_version, ID3D11Device** device, D3D_FEATURE_LEVEL* feature_level,
     ID3D11DeviceContext** context) {
     install_chat_limit();
+    install_probes();
     HMODULE module = original_module();
     if (!module) {
         log_line("D3D11 proxy: original d3d11.dll not found");
@@ -279,6 +456,7 @@ extern "C" __declspec(dllexport) HRESULT WINAPI D3D11CreateDeviceAndSwapChain(
     IDXGISwapChain** swap_chain, ID3D11Device** device,
     D3D_FEATURE_LEVEL* feature_level, ID3D11DeviceContext** context) {
     install_chat_limit();
+    install_probes();
     HMODULE module = original_module();
     if (!module) {
         log_line("D3D11 proxy: original d3d11.dll not found");
