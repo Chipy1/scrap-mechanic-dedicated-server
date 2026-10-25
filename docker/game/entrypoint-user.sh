@@ -575,6 +575,16 @@ cleanup() {
 trap cleanup EXIT
 trap 'log "received termination signal"; exit 0' TERM INT HUP
 
+apply_server_lua_guard() {
+    local script=/usr/local/lib/sm/patch_server_lua.py
+    [[ -f "$script" ]] || return 0
+    if python3 "$script" "$GAME_DIR"; then
+        log "server Lua anti-cheat patch applied"
+    else
+        log "WARNING: server Lua anti-cheat patch skipped"
+    fi
+}
+
 main() {
     require_config
     log "Scrap Mechanic dedicated server starting"
@@ -583,6 +593,7 @@ main() {
     start_vnc || die "x11vnc failed to start"
     ensure_compat_tool
     install_or_update_game
+    apply_server_lua_guard
     start_steam
     wait_for_login || die "Steam login failed"
     determine_steam_id

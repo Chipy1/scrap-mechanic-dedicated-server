@@ -88,13 +88,15 @@ COPY entrypoint-user.sh /usr/local/lib/sm/entrypoint-user.sh
 COPY validate_save.py /usr/local/lib/sm/validate_save.py
 COPY steam_id.py /usr/local/lib/sm/steam_id.py
 COPY patch_steam_config.py /usr/local/lib/sm/patch_steam_config.py
+COPY patch_server_lua.py /usr/local/lib/sm/patch_server_lua.py
 COPY accept_eula.py /usr/local/lib/sm/accept_eula.py
 COPY dxvk.conf /usr/local/lib/sm/dxvk.conf
 COPY d3d11.dll /usr/local/lib/sm/d3d11-null.dll
 COPY low-settings.json /usr/local/lib/sm/low-settings.json
 RUN chmod 0755 /entrypoint.sh /usr/local/lib/sm/entrypoint-user.sh \
         /usr/local/lib/sm/validate_save.py /usr/local/lib/sm/steam_id.py \
-        /usr/local/lib/sm/patch_steam_config.py /usr/local/lib/sm/accept_eula.py /usr/local/lib/sm/d3d11-null.dll
+        /usr/local/lib/sm/patch_steam_config.py /usr/local/lib/sm/patch_server_lua.py \
+        /usr/local/lib/sm/accept_eula.py /usr/local/lib/sm/d3d11-null.dll
 
 USER root
 STOPSIGNAL SIGTERM

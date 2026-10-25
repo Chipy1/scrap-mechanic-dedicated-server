@@ -116,6 +116,22 @@ update changes the handler, the proxy logs
 `chat limit: patch site does not match this game build, skipped` in
 `Release/nullrender.log` instead of modifying unknown code.
 
+## Inventory anti-cheat
+
+Survival mode exposes the development-only `/unlimited` and `/limited` chat
+commands. The dedicated server accepts the underlying `sv_setLimitedInventory`
+network call without checking that the caller is the development host, so a
+modified client can switch the whole world to creative inventory.
+
+On every start the entrypoint applies a narrow patch to
+`Survival/Scripts/game/SurvivalGame.lua`: both inventory-mode commands are
+rejected, `sv_setLimitedInventory(false)` is converted to limited inventory,
+and the sending player is kicked when the network layer provides a player
+reference. Rejections are logged as `[sm-anticheat] ...` in the game log. The
+patch is reapplied after Steam updates; if the upstream Lua changes, the
+entrypoint logs `server Lua anti-cheat patch skipped` and boots the unmodified
+game instead of guessing at new code.
+
 ## Web panel and VNC
 
 `sm-panel` is a separate host-network service bound to `127.0.0.1:${SM_PANEL_PORT:-8081}`.
