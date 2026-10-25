@@ -300,7 +300,7 @@ CPU/RAM контейнера — позже через cAdvisor/Docker API, чт
 - SQLite Online Backup API, не `cp` живого `.db`.
 - `busy_timeout`, повторные попытки.
 - После копии: `PRAGMA integrity_check`, `select count(*) from Game`, чтение `gametick`.
-- Манифест: `timestamp`, `save_name`, `is_custom_game`, `size`, `sha256`, `gametick`, `savegameversion`, `trigger`, `duration`.
+- Манифест: `timestamp`, `save_name`, `game_mode`, `size`, `sha256`, `gametick`, `savegameversion`, `trigger`, `duration`.
 - Атомарная запись: temp + fsync + rename.
 - Lock: одновременно только один backup/restore.
 - Расписание: онлайн каждые 15 минут при изменениях/игроках; daily full; pre-update/pre-restore.
