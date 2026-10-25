@@ -184,8 +184,9 @@ create a large amount of output; the summary is enough.
 
 ## Save rules
 
-- The seed is copied only if `User_<steamid>/Save/<SAVE_NAME>.db` (or
-  `Save/Custom/<SAVE_NAME>.db`) is absent.
+- The seed is copied only if the target path is absent:
+  `Save/Survival/<SAVE_NAME>.db` for survival, or
+  `Save/Custom/<SAVE_NAME>.db` for custom and creative.
 - An existing invalid save or seed is a hard failure, not a new world.
 - Changing `SAVE_NAME` or `GAME_MODE` after the save exists requires
   seeding the new path and restarting.
