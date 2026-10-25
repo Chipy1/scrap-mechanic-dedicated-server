@@ -128,9 +128,27 @@ On every start the entrypoint applies a narrow patch to
 rejected, `sv_setLimitedInventory(false)` is converted to limited inventory,
 and the sending player is kicked when the network layer provides a player
 reference. Rejections are logged as `[sm-anticheat] ...` in the game log. The
-patch is reapplied after Steam updates; if the upstream Lua changes, the
-entrypoint logs `server Lua anti-cheat patch skipped` and boots the unmodified
-game instead of guessing at new code.
+patched server fixed-update additionally re-broadcasts `LimitedInventory=true`
+once per second; this overwrites a client that changed only its local GameRules
+byte with Cheat Engine. The patch is reapplied after Steam updates; if the
+upstream Lua changes, the entrypoint logs `server Lua anti-cheat patch skipped`
+and boots the unmodified game instead of guessing at new code.
+
+The same patch also adds two container checks:
+
+- `Chest.sv_n_open` rejects and kicks a player opening a chest from more than
+  eight metres away.
+- `BasePlayer.sv_n_exchangeItem` only accepts the calling player's own
+  inventory or hotbar; a transaction naming another container is rejected and
+  the player is kicked.
+
+This is a mitigation, not a complete server-authoritative inventory system. A
+client that freezes the local GameRules byte and keeps rewriting it can still
+win the race between updates, and the stock server does not validate every
+creative-inventory build packet. Client-side container GUI code can also display
+data without a server event; these checks cover the server-visible open and
+transaction paths. Full protection would require rejecting build/container
+requests that are not backed by server-side state.
 
 ## Web panel and VNC
 
