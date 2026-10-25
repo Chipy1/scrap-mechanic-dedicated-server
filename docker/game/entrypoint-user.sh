@@ -383,14 +383,19 @@ validate_save() {
 }
 
 install_null_render() {
+    local target="$GAME_DIR/Release/d3d11.dll"
     if [[ "${SM_NULL_RENDER:-true}" != "true" ]]; then
+        if [[ -f "$target" && -f "$NULL_RENDER_DLL" ]] && cmp -s "$target" "$NULL_RENDER_DLL"; then
+            rm -f "$target"
+            log "removed null-render D3D11 proxy"
+        fi
         return 0
     fi
     if [[ ! -f "$NULL_RENDER_DLL" ]]; then
         log "null-render DLL not found: $NULL_RENDER_DLL"
         return 1
     fi
-    install -m 0644 "$NULL_RENDER_DLL" "$GAME_DIR/Release/d3d11.dll"
+    install -m 0644 "$NULL_RENDER_DLL" "$target"
     log "installed null-render D3D11 proxy"
 }
 
