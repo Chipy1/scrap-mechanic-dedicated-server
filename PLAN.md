@@ -160,6 +160,7 @@ GAME_MODE=survival
 ```text
 GAME_MODE=survival → /saves/User_*/Save/Survival/<SAVE_NAME>.db
 GAME_MODE=custom → /saves/User_*/Save/Custom/<SAVE_NAME>.db
+GAME_MODE=creative → /saves/User_*/Save/<SAVE_NAME>.db
 ```
 
 - Если `SAVE_NAME` уже содержит `.db`, второй раз не добавляем.
@@ -192,7 +193,8 @@ Entrypoint `sm-game` после логина Steam:
 2. Формирует `USER_DIR=.../User/User_<steamid>`.
 3. Формирует target:
    - `USER_DIR/Save/Survival/<SAVE_NAME>.db`, если `GAME_MODE=survival`;
-   - `USER_DIR/Save/Custom/<SAVE_NAME>.db`, если `GAME_MODE=custom` или `creative`.
+   - `USER_DIR/Save/Custom/<SAVE_NAME>.db`, если `GAME_MODE=custom`;
+   - `USER_DIR/Save/<SAVE_NAME>.db`, если `GAME_MODE=creative`.
 4. Если target отсутствует:
    - копирует `/seed/<SAVE_NAME>.db` в target;
    - проверяет целостность;

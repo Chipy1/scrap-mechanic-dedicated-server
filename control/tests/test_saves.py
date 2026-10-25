@@ -77,6 +77,16 @@ def test_resolver_ambiguous(settings: Settings) -> None:
     assert status["candidate_count"] == 2
 
 
+def test_resolver_creative(settings: Settings) -> None:
+    settings.game_mode = "creative"
+    path = write_save(settings.saves_dir / "User_123" / "Save" / settings.save_filename)
+    resolver = SaveResolver(settings)
+    resolved = resolver.resolve()
+    assert resolved.path == path
+    assert resolved.is_custom is False
+    assert resolver.relative_path(resolved.path) == "User_123/Save/something-test.db"
+
+
 def test_resolver_steam_id(save_path: Path, resolver: SaveResolver) -> None:
     resolver.settings.steam_id = "123"
     assert resolver.resolve().path == save_path

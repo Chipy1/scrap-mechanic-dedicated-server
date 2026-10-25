@@ -16,8 +16,8 @@ API, Prometheus metrics, and SQLite backups. It runs without a GPU or `/dev/dri`
   world. The save must contain a valid `Game` table and pass SQLite
   `quick_check`; it is copied into `sm_seed` once.
 - `SAVE_NAME` and `GAME_MODE` must match the save. `GAME_MODE` is one of
-  `custom`, `survival`, or `creative`; survival maps to `Save/Survival`, while
-  custom and creative map to `Save/Custom`.
+  `custom`, `survival`, or `creative`; survival maps to `Save/Survival`,
+  custom to `Save/Custom`, and creative directly to `Save`.
 
 Steam Cloud is intentionally unused; the server uses the save volume supplied
 by Compose.
@@ -185,8 +185,9 @@ create a large amount of output; the summary is enough.
 ## Save rules
 
 - The seed is copied only if the target path is absent:
-  `Save/Survival/<SAVE_NAME>.db` for survival, or
-  `Save/Custom/<SAVE_NAME>.db` for custom and creative.
+  `Save/Survival/<SAVE_NAME>.db` for survival,
+  `Save/Custom/<SAVE_NAME>.db` for custom, and
+  `Save/<SAVE_NAME>.db` for creative.
 - An existing invalid save or seed is a hard failure, not a new world.
 - Changing `SAVE_NAME` or `GAME_MODE` after the save exists requires
   seeding the new path and restarting.

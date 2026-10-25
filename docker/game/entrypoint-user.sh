@@ -64,7 +64,8 @@ require_config() {
     SAVE_FILENAME="$SAVE_NAME.db"
     case "${GAME_MODE,,}" in
         survival) SAVE_SUBDIR="Save/Survival" ;;
-        custom|creative) SAVE_SUBDIR="Save/Custom" ;;
+        custom) SAVE_SUBDIR="Save/Custom" ;;
+        creative) SAVE_SUBDIR="Save" ;;
         *) die "GAME_MODE must be custom, survival or creative (got: $GAME_MODE)" ;;
     esac
     SEED_FILE="$SEED_DIR/$SAVE_FILENAME"

@@ -161,15 +161,21 @@ class Settings:
 
     @property
     def is_custom_game(self) -> bool:
-        return self.game_mode != "survival"
+        # Kept as a compatibility alias for older API clients. Creative worlds
+        # are not custom games and live directly in Save.
+        return self.game_mode == "custom"
 
     @property
     def save_relative_dir(self) -> Path:
-        # Survival worlds live under Save/Survival. Creative worlds are stored
-        # in the same Custom container as custom games by Scrap Mechanic.
+        # Scrap Mechanic layout:
+        #   survival -> Save/Survival/<name>.db
+        #   custom   -> Save/Custom/<name>.db
+        #   creative -> Save/<name>.db
         if self.game_mode == "survival":
             return Path("Save") / "Survival"
-        return Path("Save") / "Custom"
+        if self.game_mode == "custom":
+            return Path("Save") / "Custom"
+        return Path("Save")
 
     def validate(self) -> None:
         self.save_name = normalize_save_name(self.save_name)
