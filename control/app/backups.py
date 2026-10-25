@@ -19,7 +19,7 @@ from .saves import (
     InvalidSave,
     SaveNotFound,
     SaveResolver,
-    copy_sqlite_database,
+    copy_save_snapshot,
     sha256_file,
     validate_save,
 )
@@ -160,10 +160,12 @@ class BackupManager:
         if only_if_changed and self._last_signature == signature:
             return None
 
-        validation = validate_save(source.path, integrity=False)
-        if not validation.valid:
-            self.backup_failures += 1
-            raise InvalidSave(validation.error or "save validation failed")
+        live = self.monitor is not None and self.monitor.is_running()
+        if not live:
+            validation = validate_save(source.path, integrity=False)
+            if not validation.valid:
+                self.backup_failures += 1
+                raise InvalidSave(validation.error or "save validation failed")
 
         now = datetime.now(timezone.utc)
         backup_id = (
@@ -177,7 +179,7 @@ class BackupManager:
         final_dir = self.backups_dir / backup_id
         try:
             backup_file = temp_dir / source.filename
-            copy_sqlite_database(source.path, backup_file)
+            copy_save_snapshot(source.path, backup_file)
             copied_validation = validate_save(backup_file, integrity=True)
             if not copied_validation.valid:
                 raise BackupInvalid(

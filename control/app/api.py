@@ -226,12 +226,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/readyz")
     async def readyz(request: Request) -> dict[str, Any]:
         checks = _ready_checks(request.app.state.settings)
-        save_status = request.app.state.save_resolver.status()
+        server_status = request.app.state.server_monitor.status()
+        save_status = request.app.state.save_resolver.status(
+            validate=not bool(server_status.get("up"))
+        )
         return {
             "ready": all(checks.values()),
             "checks": checks,
             "save_found": save_status.get("found", False),
-            "save_valid": bool((save_status.get("validation") or {}).get("valid")),
+            "save_valid": (save_status.get("validation") or {}).get("valid"),
+            "save_validation_skipped": save_status.get("validation_skipped"),
         }
 
     api = APIRouter(prefix="/api/v1", dependencies=[Depends(_auth_dependency)])
@@ -239,7 +243,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @api.get("/status")
     async def api_status(request: Request) -> dict[str, Any]:
         status = request.app.state.server_monitor.status()
-        save_status = request.app.state.save_resolver.status()
+        save_status = request.app.state.save_resolver.status(
+            validate=not bool(status.get("up"))
+        )
         backup_stats = request.app.state.backups.stats()
         return {
             "ok": True,
@@ -450,7 +456,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/metrics", dependencies=[Depends(_auth_dependency)])
     async def metrics(request: Request) -> Response:
         status = request.app.state.server_monitor.status()
-        save_status = request.app.state.save_resolver.status()
+        save_status = request.app.state.save_resolver.status(
+            validate=not bool(status.get("up"))
+        )
         backup_stats = request.app.state.backups.stats()
         log_status = request.app.state.log_monitor.to_dict()
         body = request.app.state.metrics.render(

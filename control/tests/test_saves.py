@@ -7,9 +7,11 @@ import pytest
 from app.config import Settings, normalize_save_name
 from app.saves import (
     AmbiguousSave,
+    InvalidSave,
     PathSecurityError,
     SaveNotFound,
     SaveResolver,
+    copy_save_snapshot,
     validate_save,
 )
 from conftest import write_save
@@ -75,6 +77,49 @@ def test_resolver_ambiguous(settings: Settings) -> None:
     assert status["found"] is True
     assert status["error"]
     assert status["candidate_count"] == 2
+
+
+def test_status_skips_when_server_marker_is_fresh(
+    settings: Settings, save_path: Path, monkeypatch
+) -> None:
+    marker = settings.saves_dir / ".sm-server-running"
+    marker.write_text("{}", encoding="utf-8")
+
+    def fail(*args, **kwargs):
+        raise AssertionError("live save validation must not run")
+
+    monkeypatch.setattr("app.saves.validate_save", fail)
+    status = SaveResolver(settings).status()
+    assert status["validation"] is None
+    assert status["validation_skipped"] == "server is running"
+
+
+def test_snapshot_refuses_active_journal(
+    settings: Settings, save_path: Path
+) -> None:
+    journal = save_path.with_name(save_path.name + "-journal")
+    journal.write_text("hot journal", encoding="utf-8")
+    destination = settings.backups_dir / "snapshot.db"
+    with pytest.raises(InvalidSave):
+        copy_save_snapshot(
+            save_path, destination, attempts=1, settle_seconds=0
+        )
+
+
+def test_status_skips_live_validation(
+    settings: Settings, save_path: Path, monkeypatch
+) -> None:
+    resolver = SaveResolver(settings)
+
+    def fail(*args, **kwargs):
+        raise AssertionError("live save validation must not run")
+
+    monkeypatch.setattr("app.saves.validate_save", fail)
+    status = resolver.status(validate=False)
+    assert status["validation"] is None
+    assert status["valid"] is None
+    assert status["validation_skipped"] == "requested"
+    assert status["size_bytes"] == save_path.stat().st_size
 
 
 def test_resolver_creative(settings: Settings) -> None:

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import os
+import shutil
 import sqlite3
+import time
 import urllib.parse
 from dataclasses import dataclass
 from pathlib import Path
@@ -213,35 +216,49 @@ def validate_save(path: Path, *, integrity: bool = False) -> SaveValidation:
                 pass
 
 
-def copy_sqlite_database(source: Path, destination: Path, timeout: float = 30.0) -> None:
-    """Copy a live SQLite database with the Online Backup API."""
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    if destination.exists():
-        destination.unlink()
-    source_conn: sqlite3.Connection | None = None
-    dest_conn: sqlite3.Connection | None = None
-    try:
-        source_conn = _connect_readonly(source, timeout=timeout)
-        dest_conn = sqlite3.connect(str(destination), timeout=timeout)
-        dest_conn.execute("PRAGMA busy_timeout = 30000")
-        source_conn.backup(dest_conn, pages=0, sleep=0.05)
-        dest_conn.execute("PRAGMA journal_mode = DELETE")
-        dest_conn.commit()
-    except Exception:
-        try:
-            destination.unlink(missing_ok=True)
-        except OSError:
-            pass
-        raise
-    finally:
-        if source_conn is not None:
-            source_conn.close()
-        if dest_conn is not None:
-            dest_conn.close()
-    with destination.open("rb") as handle:
-        import os
+def copy_save_snapshot(
+    source: Path,
+    destination: Path,
+    *,
+    attempts: int = 8,
+    settle_seconds: float = 0.25,
+) -> None:
+    """Copy a consistent save snapshot without taking a SQLite lock.
 
-        os.fsync(handle.fileno())
+    Scrap Mechanic has no busy timeout: any read transaction held by a control
+    process can make its next commit fail with "database is locked" and crash
+    the server. Instead of the Online Backup API, copy the main database while
+    it is quiescent and retry if a rollback journal, WAL, or mtime change shows
+    that the game wrote during the copy. The destination is validated by the
+    caller after it is detached from the live file.
+    """
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    sidecars = [
+        source.with_name(source.name + suffix)
+        for suffix in ("-journal", "-wal", "-shm")
+    ]
+    for attempt in range(attempts):
+        if any(path.exists() for path in sidecars):
+            if attempt + 1 < attempts:
+                time.sleep(settle_seconds)
+                continue
+            raise InvalidSave("save is being written; retry backup")
+        before = source.stat()
+        shutil.copyfile(source, destination)
+        after = source.stat()
+        if (
+            before.st_size != after.st_size
+            or before.st_mtime_ns != after.st_mtime_ns
+            or any(path.exists() for path in sidecars)
+        ):
+            if attempt + 1 < attempts:
+                time.sleep(settle_seconds)
+                continue
+            raise InvalidSave("save changed during copy; retry backup")
+        with destination.open("rb") as handle:
+            os.fsync(handle.fileno())
+        return
+    raise InvalidSave("save is being written; retry backup")
 
 
 class SaveResolver:
@@ -341,7 +358,15 @@ class SaveResolver:
             raise PathSecurityError("backup path is outside the saves volume") from exc
         return target
 
-    def status(self) -> dict[str, Any]:
+    def _server_marker_active(self) -> bool:
+        marker = self.settings.saves_dir / ".sm-server-running"
+        try:
+            age = time.time() - marker.stat().st_mtime
+        except OSError:
+            return False
+        return age <= self.settings.server_stale_seconds
+
+    def status(self, *, validate: bool = True) -> dict[str, Any]:
         all_saves = self.find_all()
         result: dict[str, Any] = {
             "save_name": self.settings.save_name,
@@ -355,8 +380,13 @@ class SaveResolver:
             "path": None,
             "relative_path": None,
             "validation": None,
+            "validation_skipped": None,
+            "valid": None,
             "error": None,
         }
+        if validate and self._server_marker_active():
+            validate = False
+            result["validation_skipped"] = "server is running"
         try:
             save = self.resolve()
         except SaveError as exc:
@@ -364,9 +394,11 @@ class SaveResolver:
             if isinstance(exc, AmbiguousSave):
                 result["path"] = str(exc.paths[0])
                 result["relative_path"] = self.relative_path(exc.paths[0])
-                result["validation"] = validate_save(exc.paths[0], integrity=False).to_dict()
+                if validate:
+                    result["validation"] = validate_save(
+                        exc.paths[0], integrity=False
+                    ).to_dict()
             return result
-        validation = validate_save(save.path, integrity=False)
         result.update(
             {
                 "path": str(save.path),
@@ -374,8 +406,13 @@ class SaveResolver:
                 "user_id": save.user_id,
                 "size_bytes": save.size_bytes,
                 "mtime": save.mtime,
-                "validation": validation.to_dict(),
-                "valid": validation.valid,
             }
         )
+        if not validate:
+            if result["validation_skipped"] is None:
+                result["validation_skipped"] = "requested"
+            return result
+        validation = validate_save(save.path, integrity=False)
+        result["validation"] = validation.to_dict()
+        result["valid"] = validation.valid
         return result

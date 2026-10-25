@@ -95,7 +95,9 @@ class Metrics:
         self.game_info.labels(version=str(version)).set(1)
 
         validation = save_status.get("validation") or {}
-        self.save_size.set(float(validation.get("size_bytes") or 0))
+        self.save_size.set(
+            float(validation.get("size_bytes") or save_status.get("size_bytes") or 0)
+        )
         self.save_gametick.set(float(validation.get("gametick") or 0))
         self.savegameversion.set(float(validation.get("savegameversion") or 0))
         match = status.get("save_match")

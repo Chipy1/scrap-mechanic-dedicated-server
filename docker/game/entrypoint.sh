@@ -23,4 +23,9 @@ for directory in "$STEAM_ROOT" "$SAVES_ROOT" "$LOGS_ROOT"; do
     fi
 done
 
+# Repairs files copied into the volume by root (docker cp, manual restore,
+# old seeds). A root-owned .db is readable but not writable by the game, which
+# makes Scrap Mechanic fail with "attempt to write a readonly database".
+find "$SAVES_ROOT" -xdev -not -user steam -exec chown steam:steam {} + 2>/dev/null || true
+
 exec gosu steam:steam "$ENTRYPOINT_USER" "$@"
