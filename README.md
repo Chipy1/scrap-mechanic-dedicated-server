@@ -90,6 +90,19 @@ docker compose down          # keeps named volumes
 
 Do not use `docker compose down -v` unless you intend to delete the world.
 
+## Null-render proxy
+
+The game's own `-use_null_driver` flag does not disable the D3D11 renderer in
+this build. The game image ships an app-local `d3d11.dll` proxy which forwards
+device creation to the system DLL and replaces immediate-context draw calls
+and `IDXGISwapChain::Present` with no-ops. Draw calls are disabled permanently;
+the simulation and network loop continue. Look for `Release/nullrender.log`
+in the game volume for load status.
+
+This is version-sensitive native code. Set `SM_NULL_RENDER=false` and remove
+`SM_GAME_EXTRA_ARGS`/the proxy to fall back to normal rendering. Steam updates
+may replace the DLL; the entrypoint reinstalls it on every start.
+
 ## Web panel and VNC
 
 `sm-panel` is a separate host-network service bound to `127.0.0.1:${SM_PANEL_PORT:-8081}`.

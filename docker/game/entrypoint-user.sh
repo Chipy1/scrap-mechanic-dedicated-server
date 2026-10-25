@@ -28,6 +28,7 @@ STEAM_ID_SCRIPT="${STEAM_ID_SCRIPT:-/usr/local/lib/sm/steam_id.py}"
 PATCH_SCRIPT="${PATCH_SCRIPT:-/usr/local/lib/sm/patch_steam_config.py}"
 EULA_SCRIPT="${EULA_SCRIPT:-/usr/local/lib/sm/accept_eula.py}"
 LOW_SETTINGS="${SM_LOW_SETTINGS:-/usr/local/lib/sm/low-settings.json}"
+NULL_RENDER_DLL="${SM_NULL_RENDER_DLL:-/usr/local/lib/sm/d3d11-null.dll}"
 SM_FPS_CAP="${SM_FPS_CAP:-10}"
 VALIDATE_SCRIPT="${VALIDATE_SCRIPT:-/usr/local/lib/sm/validate_save.py}"
 
@@ -381,6 +382,18 @@ validate_save() {
     python3 "$VALIDATE_SCRIPT" "$1" >/dev/null
 }
 
+install_null_render() {
+    if [[ "${SM_NULL_RENDER:-true}" != "true" ]]; then
+        return 0
+    fi
+    if [[ ! -f "$NULL_RENDER_DLL" ]]; then
+        log "null-render DLL not found: $NULL_RENDER_DLL"
+        return 1
+    fi
+    install -m 0644 "$NULL_RENDER_DLL" "$GAME_DIR/Release/d3d11.dll"
+    log "installed null-render D3D11 proxy"
+}
+
 install_settings() {
     if [[ "${SM_LOW_GRAPHICS:-true}" != "true" ]]; then
         return 0
@@ -569,6 +582,7 @@ main() {
     patch_proton_mapping
     seed_save
     install_settings
+    install_null_render
     make_windows_path
     launch_game || die "game launch failed"
 }

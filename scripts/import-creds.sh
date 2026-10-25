@@ -102,6 +102,8 @@ lines = [
     "SM_LOW_GRAPHICS=true",
     "SM_FPS_CAP=10",
     "SM_GAME_EXTRA_ARGS=",
+    "SM_NULL_RENDER=true",
+    "WINEDLLOVERRIDES=d3d11=n,b",
     "LP_NUM_THREADS=2",
     "PROTON_USE_XALIA=0",
     "SteamNoOverlay=1",
