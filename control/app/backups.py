@@ -192,6 +192,7 @@ class BackupManager:
                 "trigger": trigger,
                 "save_name": self.settings.save_name,
                 "filename": source.filename,
+                "game_mode": self.settings.game_mode,
                 "is_custom_game": self.settings.is_custom_game,
                 "source_relative_path": self.resolver.relative_path(source.path),
                 "source_size_bytes": stat.st_size,

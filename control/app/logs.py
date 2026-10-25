@@ -232,6 +232,7 @@ class LogMonitor:
                 "active_save_path": self.active_save_path,
                 "active_save_filename": self.active_save_filename(),
                 "active_save_is_custom": self.active_save_is_custom(),
+                "game_mode": self.settings.game_mode,
                 "save_match": self.save_match(),
                 "server_started": self.server_started,
                 "server_started_at": self.server_started_at,

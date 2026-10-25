@@ -46,14 +46,14 @@ def test_resolver_single(save_path: Path, resolver: SaveResolver) -> None:
     resolved = resolver.resolve()
     assert resolved.path == save_path
     assert resolved.user_id == "123"
-    assert resolver.relative_path(resolved.path) == "User_123/Save/something-test.db"
+    assert resolver.relative_path(resolved.path) == "User_123/Save/Survival/something-test.db"
     status = resolver.status()
     assert status["found"] is True
     assert status["validation"]["valid"] is True
 
 
 def test_resolver_custom(settings: Settings) -> None:
-    settings.is_custom_game = True
+    settings.game_mode = "custom"
     path = write_save(settings.saves_dir / "User_9" / "Save" / "Custom" / "something-test.db")
     resolver = SaveResolver(settings)
     assert resolver.resolve().path == path
@@ -66,8 +66,8 @@ def test_resolver_missing(settings: Settings) -> None:
 
 
 def test_resolver_ambiguous(settings: Settings) -> None:
-    write_save(settings.saves_dir / "User_1" / "Save" / "something-test.db")
-    write_save(settings.saves_dir / "User_2" / "Save" / "something-test.db")
+    write_save(settings.saves_dir / "User_1" / "Save" / "Survival" / "something-test.db")
+    write_save(settings.saves_dir / "User_2" / "Save" / "Survival" / "something-test.db")
     resolver = SaveResolver(settings)
     with pytest.raises(AmbiguousSave):
         resolver.resolve()

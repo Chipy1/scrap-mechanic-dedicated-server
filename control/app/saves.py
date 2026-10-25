@@ -346,6 +346,7 @@ class SaveResolver:
         result: dict[str, Any] = {
             "save_name": self.settings.save_name,
             "filename": self.save_filename,
+            "game_mode": self.settings.game_mode,
             "is_custom_game": self.settings.is_custom_game,
             "steam_id": self.settings.steam_id,
             "candidate_count": len(all_saves),

@@ -10,6 +10,8 @@ from typing import Any
 
 BUILD_VERSION = "0.1.0"
 DEFAULT_SAVE_NAME = "something-test"
+DEFAULT_GAME_MODE = "survival"
+GAME_MODES = ("custom", "survival", "creative")
 
 
 def _first_env(*names: str, default: str | None = None) -> str | None:
@@ -53,6 +55,14 @@ def _float_env(*names: str, default: float, minimum: float | None = None) -> flo
     return parsed
 
 
+def normalize_game_mode(value: str) -> str:
+    mode = (value or "").strip().lower()
+    if mode not in GAME_MODES:
+        choices = "|".join(GAME_MODES)
+        raise ValueError(f"GAME_MODE must be one of {choices}")
+    return mode
+
+
 def normalize_save_name(value: str) -> str:
     """Return the save stem without the trailing .db suffix."""
     name = (value or "").strip()
@@ -74,7 +84,7 @@ class Settings:
     backups_dir: Path
     state_dir: Path
     save_name: str = DEFAULT_SAVE_NAME
-    is_custom_game: bool = False
+    game_mode: str = DEFAULT_GAME_MODE
     api_token: str = ""
     steam_id: str | None = None
     backup_interval_minutes: int = 15
@@ -107,7 +117,10 @@ class Settings:
                 or "/var/lib/sm-control"
             ),
             save_name=save_name,
-            is_custom_game=_bool_env("SM_IS_CUSTOM_GAME", "IS_CUSTOM_GAME", default=False),
+            game_mode=normalize_game_mode(
+                _first_env("SM_GAME_MODE", "GAME_MODE")
+                or ("custom" if _bool_env("SM_IS_CUSTOM_GAME", "IS_CUSTOM_GAME", default=False) else "survival")
+            ),
             api_token=_first_env("SM_API_TOKEN", default="") or "",
             steam_id=steam_id or None,
             backup_interval_minutes=_int_env(
@@ -147,11 +160,20 @@ class Settings:
         return f"{self.save_name}.db"
 
     @property
+    def is_custom_game(self) -> bool:
+        return self.game_mode != "survival"
+
+    @property
     def save_relative_dir(self) -> Path:
-        return Path("Save") / "Custom" if self.is_custom_game else Path("Save")
+        # Survival worlds live under Save/Survival. Creative worlds are stored
+        # in the same Custom container as custom games by Scrap Mechanic.
+        if self.game_mode == "survival":
+            return Path("Save") / "Survival"
+        return Path("Save") / "Custom"
 
     def validate(self) -> None:
         self.save_name = normalize_save_name(self.save_name)
+        self.game_mode = normalize_game_mode(self.game_mode)
         if self.backup_interval_minutes < 1:
             raise ValueError("backup interval must be >= 1 minute")
         if self.backup_retention_days < 0 or self.backup_retention_weeks < 0:
@@ -179,6 +201,7 @@ class Settings:
             "build_version": self.build_version,
             "save_name": self.save_name,
             "save_filename": self.save_filename,
+            "game_mode": self.game_mode,
             "is_custom_game": self.is_custom_game,
             "steam_id": self.steam_id,
             "paths": {
@@ -200,7 +223,7 @@ class Settings:
 
 RUNTIME_FIELDS = {
     "save_name",
-    "is_custom_game",
+    "game_mode",
     "backup_interval_minutes",
     "backup_retention_days",
     "backup_retention_weeks",
@@ -252,8 +275,8 @@ class RuntimeConfig:
                 for key, value in patch.items():
                     if key == "save_name":
                         value = normalize_save_name(str(value))
-                    elif key == "is_custom_game":
-                        value = bool(value)
+                    elif key == "game_mode":
+                        value = normalize_game_mode(str(value))
                     elif key in {
                         "backup_interval_minutes",
                         "backup_retention_days",
@@ -297,6 +320,7 @@ def settings_from_public(data: dict[str, Any]) -> dict[str, Any]:
     allowed = {
         "save_name",
         "save_filename",
+        "game_mode",
         "is_custom_game",
         "steam_id",
         "backup",

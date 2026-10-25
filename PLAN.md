@@ -21,7 +21,7 @@
 5. GPU не используем: Steam Runtime пробрасывает lavapipe ICD внутрь pressure-vessel; DXVK 3.1 выбирает `llvmpipe`.
 6. Steam Guard выключен. Логин — по логину/паролю из `.env`. Guard-код и интерактивный вход не предусмотрены. Если Steam всё же запросит Guard или иное подтверждение — это вне рамок, контейнер не стартует.
 7. Steam Cloud не используем и не полагаемся на него.
-8. `SAVE_NAME` и `IS_CUSTOM_GAME` задаются в `.env`.
+8. `SAVE_NAME` и `GAME_MODE` (`custom|survival|creative`) задаются в `.env`.
 9. Текущий сейв: `something-test`, обычный мир. Ограничение terrain data 256×256 для этого мира не рассматриваем.
 10. Запуск игры — через Steam с `-open "<windows path>"`, а не `-last_save`.
 11. Бэкапы — отдельный compose-volume, только у control-plane.
@@ -152,14 +152,14 @@ SERVER_STEAM_USER_PASSWORD=...
 
 ```dotenv
 SAVE_NAME=something-test
-IS_CUSTOM_GAME=false
+GAME_MODE=survival
 ```
 
 Правило:
 
 ```text
-IS_CUSTOM_GAME=false → /saves/User_*/Save/<SAVE_NAME>.db
-IS_CUSTOM_GAME=true  → /saves/User_*/Save/Custom/<SAVE_NAME>.db
+GAME_MODE=survival → /saves/User_*/Save/Survival/<SAVE_NAME>.db
+GAME_MODE=custom → /saves/User_*/Save/Custom/<SAVE_NAME>.db
 ```
 
 - Если `SAVE_NAME` уже содержит `.db`, второй раз не добавляем.
@@ -191,8 +191,8 @@ Entrypoint `sm-game` после логина Steam:
    - из опционального `STEAM_ID` в `.env`.
 2. Формирует `USER_DIR=.../User/User_<steamid>`.
 3. Формирует target:
-   - `USER_DIR/Save/<SAVE_NAME>.db`, если `IS_CUSTOM_GAME=false`;
-   - `USER_DIR/Save/Custom/<SAVE_NAME>.db`, если `IS_CUSTOM_GAME=true`.
+   - `USER_DIR/Save/Survival/<SAVE_NAME>.db`, если `GAME_MODE=survival`;
+   - `USER_DIR/Save/Custom/<SAVE_NAME>.db`, если `GAME_MODE=custom` или `creative`.
 4. Если target отсутствует:
    - копирует `/seed/<SAVE_NAME>.db` в target;
    - проверяет целостность;
@@ -401,7 +401,7 @@ SERVER_STEAM_USER_PASSWORD=...
 
 # Save
 SAVE_NAME=something-test
-IS_CUSTOM_GAME=false
+GAME_MODE=survival
 
 # API
 SM_API_TOKEN=change-me

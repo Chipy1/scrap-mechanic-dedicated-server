@@ -10,7 +10,7 @@ from app.logs import LogMonitor
 def log_text(
     *,
     version: str = "1.0.6.889",
-    save: str = "C:/users/steamuser/AppData/Roaming/Axolot Games/Scrap Mechanic/User/User_1/Save/something-test.db",
+    save: str = "C:/users/steamuser/AppData/Roaming/Axolot Games/Scrap Mechanic/User/User_1/Save/Survival/something-test.db",
     connected: bool = True,
 ) -> str:
     lines = [

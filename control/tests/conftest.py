@@ -63,7 +63,7 @@ def settings(tmp_path: Path) -> Settings:
         backups_dir=backups,
         state_dir=state,
         save_name="something-test",
-        is_custom_game=False,
+        game_mode="survival",
         api_token="test-token",
         backup_auto=False,
         log_poll_seconds=0.1,
@@ -74,7 +74,7 @@ def settings(tmp_path: Path) -> Settings:
 @pytest.fixture()
 def save_path(settings: Settings) -> Path:
     return write_save(
-        settings.saves_dir / "User_123" / "Save" / settings.save_filename
+        settings.saves_dir / "User_123" / "Save" / "Survival" / settings.save_filename
     )
 
 

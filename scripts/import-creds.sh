@@ -31,8 +31,13 @@ def parse_file(path: Path) -> dict[str, str]:
         key, value = line.split("=", 1)
         key = key.strip()
         value = value.strip()
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
-            value = value[1:-1]
+        if value[:1] in {"'", '"'}:
+            quote_char = value[0]
+            end = value.find(quote_char, 1)
+            if end > 0:
+                value = value[1:end]
+        else:
+            value = value.split("#", 1)[0].strip()
         values[key] = value
     return values
 
@@ -59,7 +64,9 @@ if not login or not password:
 
 token = existing.get("SM_API_TOKEN") or secrets.token_urlsafe(32)
 save_name = existing.get("SAVE_NAME", "something-test")
-is_custom = existing.get("IS_CUSTOM_GAME", "false")
+game_mode = existing.get("GAME_MODE", "")
+if not game_mode:
+    game_mode = "custom" if existing.get("IS_CUSTOM_GAME", "false").strip().lower() in {"1", "true", "yes", "on"} else "survival"
 steam_id = existing.get("SM_STEAM_ID", "")
 backup_auto = existing.get("SM_BACKUP_AUTO", "true")
 backup_interval = existing.get("SM_BACKUP_INTERVAL_MINUTES", "15")
@@ -81,7 +88,7 @@ lines = [
     f"SERVER_STEAM_USER_LOGIN={quote(login)}",
     f"SERVER_STEAM_USER_PASSWORD={quote(password)}",
     f"SAVE_NAME={quote(save_name)}",
-    f"IS_CUSTOM_GAME={quote(is_custom)}",
+    f"GAME_MODE={quote(game_mode)}  # custom|survival|creative",
     f"SM_API_TOKEN={quote(token)}",
     f"SM_API_PORT={quote(api_port)}",
     f"SM_PANEL_USER={quote(panel_user)}",

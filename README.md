@@ -15,7 +15,9 @@ API, Prometheus metrics, and SQLite backups. It runs without a GPU or `/dev/dri`
 - An **initialized** Scrap Mechanic SQLite save. The server never creates a new
   world. The save must contain a valid `Game` table and pass SQLite
   `quick_check`; it is copied into `sm_seed` once.
-- `SAVE_NAME` and `IS_CUSTOM_GAME` must match the save (`Save` vs `Save/Custom`).
+- `SAVE_NAME` and `GAME_MODE` must match the save. `GAME_MODE` is one of
+  `custom`, `survival`, or `creative`; survival maps to `Save/Survival`, while
+  custom and creative map to `Save/Custom`.
 
 Steam Cloud is intentionally unused; the server uses the save volume supplied
 by Compose.
@@ -144,7 +146,7 @@ Routes:
 - `GET /api/v1/backups`, `GET /api/v1/backups/{id}/download`.
 - `POST /api/v1/backups/{id}/restore` — server must be stopped; send
   `{"confirm_server_stopped": true}`. A pre-restore safety backup is made.
-- `PATCH /api/v1/config` — runtime `SAVE_NAME`, `IS_CUSTOM_GAME`, backup
+- `PATCH /api/v1/config` — runtime `SAVE_NAME`, `GAME_MODE`, backup
   retention/interval; persisted in `sm_control`.
 - `GET /readyz`, `GET /healthz` — unauthenticated health checks.
 
@@ -185,7 +187,7 @@ create a large amount of output; the summary is enough.
 - The seed is copied only if `User_<steamid>/Save/<SAVE_NAME>.db` (or
   `Save/Custom/<SAVE_NAME>.db`) is absent.
 - An existing invalid save or seed is a hard failure, not a new world.
-- Changing `SAVE_NAME` or `IS_CUSTOM_GAME` after the save exists requires
+- Changing `SAVE_NAME` or `GAME_MODE` after the save exists requires
   seeding the new path and restarting.
 - The server account's SteamID is discovered from Steam after login; set
   `SM_STEAM_ID` in `.env` only if discovery is ambiguous.

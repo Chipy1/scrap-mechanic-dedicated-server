@@ -55,7 +55,7 @@ def test_create_and_verify_backup(settings: Settings, save_path: Path) -> None:
 
 
 def test_backup_requires_valid_save(settings: Settings) -> None:
-    bad = settings.saves_dir / "User_1" / "Save" / "something-test.db"
+    bad = settings.saves_dir / "User_1" / "Save" / "Survival" / "something-test.db"
     bad.parent.mkdir(parents=True)
     bad.write_text("junk", encoding="utf-8")
     manager = BackupManager(settings, SaveResolver(settings), StoppedMonitor())

@@ -16,7 +16,7 @@ SAVES_ROOT="${SM_SAVES_ROOT:-$STEAM_ROOT/steamapps/compatdata/$APP_ID/pfx/drive_
 LOGS_ROOT="${SM_LOGS_ROOT:-$STEAM_ROOT/steamapps/common/Scrap Mechanic/Logs}"
 SEED_DIR="${SM_SEED_DIR:-/seed}"
 SAVE_NAME="${SAVE_NAME:-something-test}"
-IS_CUSTOM_GAME="${IS_CUSTOM_GAME:-false}"
+GAME_MODE="${GAME_MODE:-survival}"
 LOGIN="${SERVER_STEAM_USER_LOGIN:-}"
 PASSWORD="${SERVER_STEAM_USER_PASSWORD:-}"
 STEAM_LOGIN_LOG="$STEAM_ROOT/logs/connection_log.txt"
@@ -62,9 +62,10 @@ require_config() {
     SAVE_NAME="${SAVE_NAME%.db}"
     [[ -n "$SAVE_NAME" ]] || die "SAVE_NAME must not be empty"
     SAVE_FILENAME="$SAVE_NAME.db"
-    case "${IS_CUSTOM_GAME,,}" in
-        1|true|yes|on) SAVE_SUBDIR="Save/Custom" ;;
-        *) SAVE_SUBDIR="Save" ;;
+    case "${GAME_MODE,,}" in
+        survival) SAVE_SUBDIR="Save/Survival" ;;
+        custom|creative) SAVE_SUBDIR="Save/Custom" ;;
+        *) die "GAME_MODE must be custom, survival or creative (got: $GAME_MODE)" ;;
     esac
     SEED_FILE="$SEED_DIR/$SAVE_FILENAME"
 }
@@ -576,7 +577,7 @@ trap 'log "received termination signal"; exit 0' TERM INT HUP
 main() {
     require_config
     log "Scrap Mechanic dedicated server starting"
-    log "save: $SAVE_NAME (custom=$IS_CUSTOM_GAME)"
+    log "save: $SAVE_NAME (mode=$GAME_MODE)"
     start_x
     start_vnc || die "x11vnc failed to start"
     ensure_compat_tool

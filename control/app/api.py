@@ -50,7 +50,7 @@ class RestoreRequest(BaseModel):
 
 class ConfigPatch(BaseModel):
     save_name: str | None = None
-    is_custom_game: bool | None = None
+    game_mode: str | None = None
     backup_interval_minutes: int | None = Field(default=None, ge=1)
     backup_retention_days: int | None = Field(default=None, ge=0)
     backup_retention_weeks: int | None = Field(default=None, ge=0)
