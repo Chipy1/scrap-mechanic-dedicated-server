@@ -105,6 +105,17 @@ This is version-sensitive native code. Set `SM_NULL_RENDER=false` and remove
 `SM_GAME_EXTRA_ARGS`/the proxy to fall back to normal rendering. Steam updates
 may replace the DLL; the entrypoint reinstalls it on every start.
 
+## Chat message limit
+
+The same app-local DLL installs a small runtime guard in the game's
+`ChatServer` packet handler. Chat packets larger than 2048 bytes are dropped
+before the handler parses their length-prefixed strings, so an oversized chat
+message cannot overflow the handler's fixed stack buffers. Normal chat and
+server commands are unaffected. The guard is version-sensitive: if a Steam
+update changes the handler, the proxy logs
+`chat limit: patch site does not match this game build, skipped` in
+`Release/nullrender.log` instead of modifying unknown code.
+
 ## Web panel and VNC
 
 `sm-panel` is a separate host-network service bound to `127.0.0.1:${SM_PANEL_PORT:-8081}`.
