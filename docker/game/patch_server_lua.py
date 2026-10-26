@@ -8,9 +8,7 @@ and switch the whole server to the creative inventory. This patch keeps the
 server in limited-inventory mode and kicks the offending player when the
 network layer supplies one.
 
-It also adds narrow checks around container access:
-- a chest can only be opened from a reasonable distance;
-- `sv_n_exchangeItem` can only touch the calling player's own inventory/hotbar.
+It also adds a narrow chest-distance check.
 
 The patches are intentionally narrow and fail soft: if upstream Lua changes,
 startup logs a warning and the unmodified game still boots.
@@ -19,6 +17,7 @@ startup logs a warning and the unmodified game still boots.
 from __future__ import annotations
 
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -90,19 +89,27 @@ CHEST_GUARD = """
 \tend
 """
 
-BASE_MARKER = "-- sm-anticheat: reject foreign inventory transaction"
-BASE_SIGNATURE = "function BasePlayer.sv_n_exchangeItem( self, params )\n"
-BASE_GUARD = """
-\t-- sm-anticheat: reject foreign inventory transaction
-\tif not sm.exists( self.player ) then
-\t\treturn
+GIVE_MARKER = "-- sm-anticheat: reject client item grants"
+GIVE_SIGNATURE = "function SurvivalGame.sv_giveItem( self, params )\n"
+GIVE_GUARD = """
+\t-- sm-anticheat: reject client item grants
+\tprint( "[sm-anticheat] blocked item grant", params and params.item or "unknown", params and params.quantity or "?" )
+\tif params and params.player then
+\t\tsm.game.kickPlayer( params.player )
 \tend
-\tlocal ownInventory = self.player:getInventory()
-\tlocal ownHotbar = self.player:getHotbar()
-\tif params.playerInventory ~= ownInventory and params.playerInventory ~= ownHotbar then
-\t\tprint( "[sm-anticheat] blocked foreign inventory transaction", self.player.name or "unknown" )
-\t\tsm.game.kickPlayer( self.player )
-\t\treturn
+\treturn
+"""
+
+AUDIT_MARKER = "-- sm-anticheat: inventory change audit v2"
+AUDIT_SIGNATURE = "function SurvivalPlayer.server_onInventoryChanges( self, container, changes )\n"
+AUDIT_GUARD = """
+\t-- sm-anticheat: inventory change audit
+\tif container == self.player:getInventory() and changes then
+\t\tfor _, item in ipairs( changes ) do
+\t\t\tif item.difference > 0 then
+\t\t\t\tsm.log.error( "[sm-anticheat] inventory add " .. tostring( self.player.name or "unknown" ) .. " " .. tostring( item.uuid ) .. " " .. tostring( item.difference ) )
+\t\t\tend
+\t\tend
 \tend
 """
 
@@ -130,11 +137,56 @@ def apply_insert_patch(path: Path, marker: str, signature: str, guard: str) -> b
     return True
 
 
+def revert(game_dir: Path) -> int:
+    """Remove the known anti-cheat insertions and restore stock Lua bodies."""
+    path = game_dir / "Survival" / "Scripts" / "game" / "SurvivalGame.lua"
+    if not path.is_file():
+        print(f"[sm-anticheat] missing {path}", file=sys.stderr)
+        return 1
+
+    text = path.read_text(encoding="utf-8")
+    text = text.replace(CHAT_GUARD, "")
+    text = text.replace(PERIODIC_BLOCK, "")
+    text = text.replace(NEW_LIMITED, OLD_LIMITED)
+    text = text.replace(GIVE_GUARD, "")
+    if text != path.read_text(encoding="utf-8"):
+        replace_file(path, text)
+        print(f"[sm-anticheat] reverted {path}")
+
+    chest = game_dir / "Survival" / "Scripts" / "game" / "interactables" / "Chest.lua"
+    if chest.is_file():
+        current = chest.read_text(encoding="utf-8")
+        while CHEST_GUARD in current:
+            current = current.replace(CHEST_GUARD, "")
+        if current != chest.read_text(encoding="utf-8"):
+            replace_file(chest, current)
+            print(f"[sm-anticheat] reverted {chest}")
+
+    survival_player = game_dir / "Survival" / "Scripts" / "game" / "SurvivalPlayer.lua"
+    if survival_player.is_file():
+        current = survival_player.read_text(encoding="utf-8")
+        pattern = re.compile(
+            r"\n\t-- sm-anticheat: inventory change audit\n.*?\n\tQuestManager\.Sv_SendEvent",
+            re.S,
+        )
+        current = pattern.sub("\n\tQuestManager.Sv_SendEvent", current, count=1)
+        current = "\n".join(
+            line for line in current.splitlines() if "sm-anticheat" not in line
+        ) + "\n"
+        if current != survival_player.read_text(encoding="utf-8"):
+            replace_file(survival_player, current)
+            print(f"[sm-anticheat] reverted {survival_player}")
+    return 0
+
+
 def main() -> int:
-    game_dir = Path(sys.argv[1] if len(sys.argv) > 1 else os.environ.get("GAME_DIR", ""))
+    args = sys.argv[1:]
+    game_dir = Path(args[-1] if args and args[-1] != "--revert" else os.environ.get("GAME_DIR", ""))
     if not game_dir:
         print("[sm-anticheat] GAME_DIR is not set", file=sys.stderr)
         return 1
+    if "--revert" in args:
+        return revert(game_dir)
 
     path = game_dir / "Survival" / "Scripts" / "game" / "SurvivalGame.lua"
     if not path.is_file():
@@ -165,16 +217,22 @@ def main() -> int:
 
     ok = True
     ok = apply_insert_patch(
+        path,
+        GIVE_MARKER,
+        GIVE_SIGNATURE,
+        GIVE_GUARD,
+    ) and ok
+    ok = apply_insert_patch(
         game_dir / "Survival" / "Scripts" / "game" / "interactables" / "Chest.lua",
         CHEST_MARKER,
         CHEST_SIGNATURE,
         CHEST_GUARD,
     ) and ok
     ok = apply_insert_patch(
-        game_dir / "Data" / "Scripts" / "game" / "BasePlayer.lua",
-        BASE_MARKER,
-        BASE_SIGNATURE,
-        BASE_GUARD,
+        game_dir / "Survival" / "Scripts" / "game" / "SurvivalPlayer.lua",
+        AUDIT_MARKER,
+        AUDIT_SIGNATURE,
+        AUDIT_GUARD,
     ) and ok
     return 0 if ok else 1
 
