@@ -575,13 +575,17 @@ cleanup() {
 trap cleanup EXIT
 trap 'log "received termination signal"; exit 0' TERM INT HUP
 
-apply_server_lua_guard() {
-    local script=/usr/local/lib/sm/patch_server_lua.py
-    [[ -f "$script" ]] || return 0
-    if python3 "$script" "$GAME_DIR"; then
-        log "server Lua anti-cheat patch applied"
-    else
-        log "WARNING: server Lua anti-cheat patch skipped"
+apply_server_lua() {
+    # Scrap Mechanic rejects clients when server Lua differs from stock.
+    # Never patch game Lua by default; keep the files Steam shipped.
+    if [[ "${SM_LUA_PATCHES:-false}" != "true" ]]; then
+        log "game Lua left untouched"
+        return 0
+    fi
+
+    local anti=/usr/local/lib/sm/patch_server_lua.py
+    if [[ -f "$anti" ]]; then
+        python3 "$anti" --revert "$GAME_DIR" || log "WARNING: Lua anti-cheat revert failed"
     fi
 }
 
@@ -593,7 +597,7 @@ main() {
     start_vnc || die "x11vnc failed to start"
     ensure_compat_tool
     install_or_update_game
-    apply_server_lua_guard
+    apply_server_lua
     start_steam
     wait_for_login || die "Steam login failed"
     determine_steam_id

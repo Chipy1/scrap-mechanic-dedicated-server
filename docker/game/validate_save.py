@@ -20,7 +20,9 @@ def main(argv: list[str]) -> int:
     if path.stat().st_size <= 0:
         print(f"empty save: {path}", file=sys.stderr)
         return 1
-    uri = "file:" + urllib.parse.quote(str(path.resolve()), safe="/") + "?mode=ro"
+    # Read-write is required so SQLite can roll back a hot journal left by a
+    # previous crash before quick_check runs. No game process is running yet.
+    uri = "file:" + urllib.parse.quote(str(path.resolve()), safe="/") + "?mode=rw"
     connection = None
     try:
         connection = sqlite3.connect(uri, uri=True, timeout=10)
