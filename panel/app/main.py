@@ -127,6 +127,11 @@ button { border:0; border-radius:7px; padding:8px 10px; background:#2b6cb0; colo
   cursor:pointer; font:inherit; }
 button:hover { background:#3981ca; }
 .logs { flex:1; min-height:0; display:flex; flex-direction:column; }
+.chat { display:flex; flex-direction:column; min-height:160px; }
+.chat pre { min-height:100px; max-height:220px; }
+.chat form { display:flex; gap:6px; margin-top:8px; }
+.chat input { flex:1; min-width:0; border:1px solid #2b3a4c; border-radius:7px;
+  background:#0b1016; color:#e6edf3; padding:8px; font:inherit; }
 pre { flex:1; min-height:0; overflow:auto; margin:0; padding:10px; border-radius:7px;
   background:#0b1016; color:#bfd3e3; font:12px/1.45 ui-monospace,monospace; white-space:pre-wrap; }
 .vnc { min-height:0; background:#171e27; border:1px solid #273241; border-radius:10px; overflow:hidden; }
@@ -148,6 +153,14 @@ pre { flex:1; min-height:0; overflow:auto; margin:0; padding:10px; border-radius
       <h2>Действия</h2>
       <button id="backup">Создать бэкап</button>
       <p id="action" class="error"></p>
+    </section>
+    <section class="card chat">
+      <h2>Чат</h2>
+      <pre id="chat">Загрузка…</pre>
+      <form id="chatForm">
+        <input id="chatText" maxlength="400" placeholder="Сообщение от сервера" autocomplete="off">
+        <button type="submit">Отправить</button>
+      </form>
     </section>
     <section class="card logs">
       <h2>Лог</h2>
@@ -183,9 +196,26 @@ async function refresh() {
       ["Бэкапы", (d.backups || {}).count],
     ]);
     const l = await api("/api/panel/logs?tail=120");
-    $("logs").textContent = (l.lines || []).join("\\n") || "Лог пуст";
+    $("logs").textContent = (l.lines || []).join("\n") || "Лог пуст";
+    const c = await api("/api/panel/chat?tail=100");
+    $("chat").textContent = (c.messages || []).join("\n") || "Сообщений пока нет";
+    $("chat").scrollTop = $("chat").scrollHeight;
   } catch (e) { $("status").textContent = String(e); }
 }
+$("chatForm").onsubmit = async (event) => {
+  event.preventDefault();
+  const text = $("chatText").value.trim();
+  if (!text) return;
+  $("chatText").value = "";
+  try {
+    await api("/api/panel/chat", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({text})
+    });
+    refresh();
+  } catch (e) { $("chat").textContent = String(e); }
+};
 $("backup").onclick = async () => {
   $("action").textContent = "";
   try {
@@ -264,6 +294,23 @@ async def _control(request: Request, method: str, path: str, **kwargs: Any) -> R
 @app.get("/api/panel/status")
 async def panel_status(request: Request) -> Response:
     return await _control(request, "GET", "/api/v1/status")
+
+
+@app.get("/api/panel/chat")
+async def panel_chat(request: Request, tail: int = 100) -> Response:
+    return await _control(request, "GET", "/api/v1/chat", params={"tail": tail})
+
+
+@app.post("/api/panel/chat")
+async def panel_chat_send(request: Request) -> Response:
+    body = await request.body()
+    return await _control(
+        request,
+        "POST",
+        "/api/v1/chat",
+        content=body,
+        headers={"Content-Type": "application/json"},
+    )
 
 
 @app.get("/api/panel/players")

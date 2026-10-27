@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Query, R
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
+from .chat import read_messages, send_message
 from .backups import (
     BackupBusy,
     BackupError,
@@ -46,6 +47,10 @@ class BackupRequest(BaseModel):
 class RestoreRequest(BaseModel):
     confirm_server_stopped: bool = False
     force: bool = False
+
+
+class ChatMessage(BaseModel):
+    text: str = Field(min_length=1, max_length=400)
 
 
 class ConfigPatch(BaseModel):
@@ -267,6 +272,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 },
             },
         }
+
+    @api.get("/chat")
+    async def api_chat(request: Request, tail: int = Query(default=100, ge=1, le=500)) -> dict[str, Any]:
+        messages = await asyncio.to_thread(
+            read_messages, request.app.state.settings.saves_dir, tail
+        )
+        return {"messages": messages}
+
+    @api.post("/chat")
+    async def api_chat_send(request: Request, payload: ChatMessage) -> dict[str, Any]:
+        try:
+            await asyncio.to_thread(
+                send_message, request.app.state.settings.saves_dir, payload.text
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return {"ok": True}
 
     @api.get("/players")
     async def api_players(request: Request) -> dict[str, Any]:

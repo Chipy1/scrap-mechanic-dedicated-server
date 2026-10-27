@@ -167,6 +167,14 @@ The login is `SM_PANEL_USER` / `SM_PANEL_PASSWORD` from `.env`. The panel sessio
 signed with `SM_PANEL_SECRET`; keep all three values secret. Do not bind the panel to
 `0.0.0.0` without TLS and a firewall/VPN.
 
+The panel also has a chat card. Incoming chat is captured from the native
+`ChatServer` broadcast hook; messages sent from the panel are prefixed with
+`[SERVER]` and broadcast through the same hook. They are therefore visible to
+all connected clients and in the panel history. The transport is a small file
+queue under the saves volume (`/saves/.sm-chat`); it does not modify game Lua.
+The native hook is version-sensitive and stays disabled when its original bytes
+do not match the installed game build.
+
 ## API and metrics
 
 The API is bound to `127.0.0.1:${SM_API_PORT}`. Every `/api/v1/*` route and
