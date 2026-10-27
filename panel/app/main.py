@@ -196,9 +196,9 @@ async function refresh() {
       ["Бэкапы", (d.backups || {}).count],
     ]);
     const l = await api("/api/panel/logs?tail=120");
-    $("logs").textContent = (l.lines || []).join("\n") || "Лог пуст";
+    $("logs").textContent = (l.lines || []).join("\\n") || "Лог пуст";
     const c = await api("/api/panel/chat?tail=100");
-    $("chat").textContent = (c.messages || []).join("\n") || "Сообщений пока нет";
+    $("chat").textContent = (c.messages || []).join("\\n") || "Сообщений пока нет";
     $("chat").scrollTop = $("chat").scrollHeight;
   } catch (e) { $("status").textContent = String(e); }
 }
