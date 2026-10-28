@@ -1092,6 +1092,96 @@ void patch_swap_chain(IDXGISwapChain* swap_chain) {
     patch_pointer(table, 8, reinterpret_cast<void*>(&nop_present));
 }
 
+// Scrap Mechanic 1.0.6.889 (server): before writing the "core files
+// modified" flag, force AL to zero.  This keeps the flag clear for the
+// achievement/progression checks while leaving all file loading untouched.
+constexpr std::uintptr_t kCoreFlagInitRva = 0x777dc5;
+constexpr std::uintptr_t kCoreFlagSetRva = 0x479f31;
+constexpr std::size_t kCoreFlagPatchSize = 7;
+const unsigned char kCoreFlagInitOriginal[kCoreFlagPatchSize] = {
+    0x40, 0x88, 0xbe, 0x77, 0x03, 0x00, 0x00,  // mov [rsi+0x377], dil
+};
+const unsigned char kCoreFlagInitReplacement[kCoreFlagPatchSize] = {
+    0xc6, 0x86, 0x77, 0x03, 0x00, 0x00, 0x00,  // mov byte [rsi+0x377], 0
+};
+const unsigned char kCoreFlagSetOriginal[kCoreFlagPatchSize] = {
+    0x0f, 0xb6, 0x82, 0xf0, 0x00, 0x00, 0x00,  // movzx eax, byte [rdx+0xf0]
+};
+const unsigned char kCoreFlagSetReplacement[kCoreFlagPatchSize] = {
+    0x31, 0xc0, 0x90, 0x90, 0x90, 0x90, 0x90,  // xor eax, eax + NOPs
+};
+
+constexpr std::uintptr_t kCoreCheckRva = 0x77854c;
+constexpr std::size_t kCoreCheckPatchSize = 2;
+const unsigned char kCoreCheckOriginal[kCoreCheckPatchSize] = {0x74, 0x6d};
+const unsigned char kCoreCheckReplacement[kCoreCheckPatchSize] = {0xeb, 0x6d};
+
+constexpr std::uintptr_t kCoreFlagCheckRva = 0x779536;
+constexpr std::size_t kCoreFlagCheckPatchSize = 6;
+const unsigned char kCoreFlagCheckOriginal[kCoreFlagCheckPatchSize] = {
+    0x0f, 0x85, 0xb4, 0x00, 0x00, 0x00,
+};
+const unsigned char kCoreFlagCheckReplacement[kCoreFlagCheckPatchSize] = {
+    0x90, 0x90, 0x90, 0x90, 0x90, 0x90,
+};
+
+void install_core_modified_bypass() {
+    static bool attempted = false;
+    if (attempted) return;
+    attempted = true;
+
+    HMODULE exe = GetModuleHandleW(nullptr);
+    if (!exe) {
+        log_line("core-modified bypass: main module not found");
+        return;
+    }
+    auto* base = reinterpret_cast<unsigned char*>(exe);
+    auto* init_patch = base + kCoreFlagInitRva;
+    auto* set_patch = base + kCoreFlagSetRva;
+    if (std::memcmp(init_patch, kCoreFlagInitOriginal, kCoreFlagPatchSize) != 0 ||
+        std::memcmp(set_patch, kCoreFlagSetOriginal, kCoreFlagPatchSize) != 0) {
+        log_line("core-modified bypass: patch sites do not match this game build, skipped");
+        return;
+    }
+
+    DWORD old = 0;
+    if (!VirtualProtect(init_patch, kCoreFlagPatchSize, PAGE_EXECUTE_READWRITE, &old)) {
+        log_line("core-modified bypass: init patch page is not writable");
+        return;
+    }
+    std::memcpy(init_patch, kCoreFlagInitReplacement, kCoreFlagPatchSize);
+    DWORD ignored = 0;
+    VirtualProtect(init_patch, kCoreFlagPatchSize, old, &ignored);
+
+    if (!VirtualProtect(set_patch, kCoreFlagPatchSize, PAGE_EXECUTE_READWRITE, &old)) {
+        log_line("core-modified bypass: set patch page is not writable");
+        return;
+    }
+    std::memcpy(set_patch, kCoreFlagSetReplacement, kCoreFlagPatchSize);
+    VirtualProtect(set_patch, kCoreFlagPatchSize, old, &ignored);
+    FlushInstructionCache(GetCurrentProcess(), init_patch, kCoreFlagPatchSize);
+    FlushInstructionCache(GetCurrentProcess(), set_patch, kCoreFlagPatchSize);
+
+    auto* check_patch = base + kCoreCheckRva;
+    auto* flag_patch = base + kCoreFlagCheckRva;
+    if (std::memcmp(check_patch, kCoreCheckOriginal, kCoreCheckPatchSize) != 0 ||
+        std::memcmp(flag_patch, kCoreFlagCheckOriginal, kCoreFlagCheckPatchSize) != 0) {
+        log_line("core-modified bypass: check sites do not match this game build, skipped");
+        return;
+    }
+    if (VirtualProtect(check_patch, kCoreCheckPatchSize, PAGE_EXECUTE_READWRITE, &old)) {
+        std::memcpy(check_patch, kCoreCheckReplacement, kCoreCheckPatchSize);
+        VirtualProtect(check_patch, kCoreCheckPatchSize, old, &ignored);
+        FlushInstructionCache(GetCurrentProcess(), check_patch, kCoreCheckPatchSize);
+    }
+    if (VirtualProtect(flag_patch, kCoreFlagCheckPatchSize, PAGE_EXECUTE_READWRITE, &old)) {
+        std::memcpy(flag_patch, kCoreFlagCheckReplacement, kCoreFlagCheckPatchSize);
+        VirtualProtect(flag_patch, kCoreFlagCheckPatchSize, old, &ignored);
+        FlushInstructionCache(GetCurrentProcess(), flag_patch, kCoreFlagCheckPatchSize);
+    }
+    log_line("core-modified bypass: core-files-modified checks bypassed");
+}
+
 using CreateDeviceFn = HRESULT(WINAPI*)(IDXGIAdapter*, D3D_DRIVER_TYPE, HMODULE, UINT,
                                         const D3D_FEATURE_LEVEL*, UINT, UINT,
                                         ID3D11Device**, D3D_FEATURE_LEVEL*,
@@ -1109,6 +1199,7 @@ extern "C" __declspec(dllexport) HRESULT WINAPI D3D11CreateDevice(
     UINT flags, const D3D_FEATURE_LEVEL* feature_levels, UINT feature_level_count,
     UINT sdk_version, ID3D11Device** device, D3D_FEATURE_LEVEL* feature_level,
     ID3D11DeviceContext** context) {
+    install_core_modified_bypass();
     install_chat_limit();
     install_chat_bridge();
     HMODULE module = original_module();
@@ -1136,6 +1227,7 @@ extern "C" __declspec(dllexport) HRESULT WINAPI D3D11CreateDeviceAndSwapChain(
     UINT sdk_version, const DXGI_SWAP_CHAIN_DESC* swap_chain_desc,
     IDXGISwapChain** swap_chain, ID3D11Device** device,
     D3D_FEATURE_LEVEL* feature_level, ID3D11DeviceContext** context) {
+    install_core_modified_bypass();
     install_chat_limit();
     install_chat_bridge();
     HMODULE module = original_module();
