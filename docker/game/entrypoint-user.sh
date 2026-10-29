@@ -575,6 +575,17 @@ cleanup() {
 trap cleanup EXIT
 trap 'log "received termination signal"; exit 0' TERM INT HUP
 
+apply_server_raid_fix() {
+    if [[ "${SM_RAID_FIX:-false}" != "true" ]]; then
+        return 0
+    fi
+    local raid=/usr/local/lib/sm/patch_server_raid.py
+    if [[ -f "$raid" ]]; then
+        python3 "$raid" "$GAME_DIR" || log "WARNING: raid fix patch failed"
+        rm -f "$GAME_DIR/Cache/Bundle/core_data.cbo"
+    fi
+}
+
 apply_server_lua() {
     # Scrap Mechanic rejects clients when server Lua differs from stock.
     # Never patch game Lua by default; keep the files Steam shipped.
@@ -597,6 +608,7 @@ main() {
     start_vnc || die "x11vnc failed to start"
     ensure_compat_tool
     install_or_update_game
+    apply_server_raid_fix
     apply_server_lua
     start_steam
     wait_for_login || die "Steam login failed"
