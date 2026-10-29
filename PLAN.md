@@ -11,6 +11,11 @@
 - Рендер: **lavapipe + Xvfb**, без `/dev/dri` и GPU-runtime
 - Steam Guard: **выключен**, Guard-код не предусмотрен
 - Запуск: только через Steam, с `-open`, не прямым вызовом Proton
+- Control-plane: REST API, Prometheus, SQLite-бэкапы/restore, операции
+- Panel: single-admin UI, логи, чат, noVNC; loopback-only
+- Native-защита: null-render D3D11 proxy, лимит чата 2048 байт, container setItem guard
+- Game Lua: по умолчанию stock; `SM_LUA_PATCHES=true` — только legacy revert
+- Документация: `README.md` (эксплуатация), `TECHNICAL.md` (архитектура/риски), `AGENTS.md` (правила), `PLAN.md` (решения)
 
 ## 1. Зафиксированные решения
 
@@ -26,7 +31,7 @@
 10. Запуск игры — через Steam с `-open "<windows path>"`, а не `-last_save`.
 11. Бэкапы — отдельный compose-volume, только у control-plane.
 12. Сейв кладётся в выделенный volume. Перед первым запуском файл должен быть **инициализированным** SQLite-сейвом, а не пустым файлом.
-13. Документация минимальная: один README + `.env.example` + OpenAPI control-plane.
+13. Документация: README (эксплуатация), TECHNICAL.md (архитектура/риски), AGENTS.md (правила для агентов), PLAN.md (решения), `.env.example`; OpenAPI — автоматически у control-plane.
 
 ## 2. Архитектура
 
@@ -474,23 +479,22 @@ SM-dedicated-server/
   - smoke-check `/healthz`, `/metrics`, лог игры.
 - Деплой выполняется только после локальной проверки control-plane и game-образа.
 
-## 11. Документация (минимум)
+## 11. Документация
 
-`README.md`:
+Разделение:
 
-- что это и ограничения (нет официального dedicated server, Steam обязателен, Guard должен быть выключен, CPU-рендер);
-- `.env` и таблица переменных;
-- volumes и где лежат сейвы/бэкапы;
-- **важно:** сейв в volume должен быть инициализированным SQLite-сейвом; пустой файл/заглушка не подходят;
-- первый запуск, логин, seed, проверка;
-- команды `docker compose`;
-- API endpoints и примеры `curl`;
-- backup/restore;
-- деплой на `<remote-host>`;
-- troubleshooting: Steam login, lavapipe, Xvfb, `-open`, пустой сейв, несовпадение активного сейва;
-- Steam Cloud не используем.
+- `README.md` — эксплуатация: требования, установка, сервисы/volumes, команды,
+  API/panel, save rules, security, remote deployment.
+- `TECHNICAL.md` — архитектура, startup flow, control-plane, API, backup/restore,
+  native-патчи, CPU rendering, client sync, тесты и known risks.
+- `AGENTS.md` — правила для coding agents: ограничения, validation, review checklist,
+  известные ловушки.
+- `PLAN.md` — исторический design/decision log; не операторский мануал.
+- `.env.example` — документированные переменные; OpenAPI — `/docs`, `/openapi.json`.
 
-OpenAPI — автоматически у control-plane (`/docs`, `/openapi.json`).
+Обязательные предупреждения остаются в README/TECHNICAL: Steam обязателен,
+Guard должен быть выключен, сейв должен быть инициализированным SQLite,
+`docker compose down -v` удаляет мир, API/panel — только loopback/SSH tunnel.
 
 ## 12. Этапы
 
@@ -507,7 +511,7 @@ OpenAPI — автоматически у control-plane (`/docs`, `/openapi.json
 5. **Деплой на `<remote-host>`**
    - `.env`, seed, первый запуск, smoke-test, бэкап/restore.
 6. **Эксплуатация**
-   - обновления/rollback, алерты, панель, при необходимости — lifecycle через Docker API.
+   - обновления/rollback, алерты, панель, backup/restore; lifecycle API — при необходимости.
 
 ## 13. Критерии готовности
 
@@ -532,16 +536,16 @@ OpenAPI — автоматически у control-plane (`/docs`, `/openapi.json
 - Steam-сеть и host network — проверить на реальном клиенте.
 - Graceful stop — проверить; fallback может не сохранить состояние.
 - Docker socket для lifecycle — отдельный этап, не в MVP.
-- `Survival/` не поддержан; только root/Custom.
-- Моды/workshop — нужен манифест или отдельный volume.
+- Поддержаны `survival`, `custom`, `creative`; `SAVE_NAME`/`GAME_MODE` должны совпадать с сейвом.
+- Game Lua по умолчанию stock; старый Lua anti-cheat отключён, `SM_LUA_PATCHES=true` только откатывает его. Изменённый Lua требует синхронизации клиентов.
+- Native offsets null-render/chat/container proxy версионно-зависимы; после Steam update проверять `Release/nullrender.log`.
+- Panel не покрыт тестами; control-plane — 42 unit/API теста, Docker/Steam integration и CI отсутствуют.
 - Секреты в `.env` видны в `docker inspect`; для MVP допустимо, для продакшена — secrets.
 
 ## 15. Открытые пункты
 
-- Точное поведение `steam -login` без Guard.
-- Способ graceful stop (Alt+F4 через xdotool / SIGTERM / wineserver).
-- Формат seed-volume: named volume vs bind mount.
-- Нужен ли Prometheus/Grafana в compose или только `/metrics`.
-- Нужен ли lifecycle API в MVP или позже.
-- Поддержка `Survival/`.
-- `TZ` по умолчанию.
+- Точное поведение `steam -login` без Guard на новых клиентах Steam.
+- Нужен ли Prometheus/Grafana в compose или достаточно `/metrics`.
+- Автоматизация CI: pytest, compileall, compose config, shell syntax.
+- Тесты panel и Docker/Steam integration.
+- Проверка native offsets после каждого обновления игры.
